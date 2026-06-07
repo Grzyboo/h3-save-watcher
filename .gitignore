@@ -3,6 +3,7 @@
 .idea
 .DS_Store
 build/
+h3savewatcher
 h3savewatcher.log
 fyne-cross
 .env

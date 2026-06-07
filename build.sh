@@ -91,6 +91,6 @@ else
   # Local build — current OS/arch, output as build/h3savewatcher
   # No Docker needed.
   # ---------------------------------------------------------------------------
-  go build -o build/h3savewatcher ./src/
-  echo "Built build/h3savewatcher (${VERSION})"
+  go build -o h3savewatcher ./src/
+  echo "Built h3savewatcher (${VERSION})"
 fi
