@@ -74,12 +74,12 @@ if [ "${RELEASE:-}" = "1" ]; then
   cp fyne-cross/bin/windows-amd64/H3SaveWatcher.exe build/h3savewatcher-windows-amd64.exe
 
   echo "Generating checksums..."
-  sha256sum \
-    build/h3savewatcher-linux-amd64 \
-    build/h3savewatcher-darwin-amd64 \
-    build/h3savewatcher-darwin-arm64 \
-    build/h3savewatcher-windows-amd64.exe \
-    > build/checksums.txt
+  ( cd build && sha256sum \
+    h3savewatcher-linux-amd64 \
+    h3savewatcher-darwin-amd64 \
+    h3savewatcher-darwin-arm64 \
+    h3savewatcher-windows-amd64.exe \
+    > checksums.txt )
 
   echo ""
   echo "build/checksums.txt:"
