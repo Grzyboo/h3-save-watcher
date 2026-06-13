@@ -15,6 +15,12 @@ import (
 
 var endTurnFile = regexp.MustCompile(`^\d+\.GM2$`)
 
+const (
+	watchedFilesDebounce = 1 * time.Second
+	hotaPollerDebounce   = 3 * time.Second
+	hotaPollerInterval   = 60 * time.Second
+)
+
 var watchedFiles = []struct {
 	relPath  string
 	fileType string
@@ -100,17 +106,17 @@ func (a *App) startWatcher(dir string) {
 				if fileType, matched := absToType[absEvent]; matched && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
 					dmu.Lock()
 					if p, exists := debounce[absEvent]; exists {
-						p.timer.Reset(time.Second)
-					} else {
-						p := &pending{path: event.Name, fileType: fileType}
-						p.timer = time.AfterFunc(time.Second, func() {
-							dmu.Lock()
-							delete(debounce, absEvent)
-							dmu.Unlock()
-							a.uploadFile(p.path, p.fileType)
-						})
-						debounce[absEvent] = p
-					}
+				        p.timer.Reset(watchedFilesDebounce)
+                    } else {
+                        p := &pending{path: event.Name, fileType: fileType}
+                        p.timer = time.AfterFunc(watchedFilesDebounce, func() {
+                            dmu.Lock()
+                            delete(debounce, absEvent)
+                            dmu.Unlock()
+                            a.uploadFile(p.path, p.fileType)
+                        })
+                        debounce[absEvent] = p
+                    }
 					dmu.Unlock()
 				}
 			case err, ok := <-watcher.Errors:
@@ -155,7 +161,7 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 	debounce := make(map[string]*pending)
 	var dmu sync.Mutex
 
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(hotaPollerInterval)
 	defer ticker.Stop()
 
 	log.Printf("hota poller started, watching: %s", hotaDir)
@@ -183,10 +189,10 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 				log.Printf("hota poller: new file detected: %s", rel)
 				dmu.Lock()
 				if p, exists := debounce[absPath]; exists {
-					p.timer.Reset(3 * time.Second)
+					p.timer.Reset(hotaPollerDebounce)
 				} else {
 					p := &pending{absPath: absPath}
-					p.timer = time.AfterFunc(3*time.Second, func() {
+					p.timer = time.AfterFunc(hotaPollerDebounce, func() {
 						dmu.Lock()
 						delete(debounce, absPath)
 						dmu.Unlock()
