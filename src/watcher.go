@@ -21,6 +21,7 @@ var watchedFiles = []struct {
 }{
 	{"Games/BATTLE.GM2", "BATTLE"},
 	{"Games/BATTLE_non_continuable.GM2", "BATTLE_NC"},
+	{"Games/TURN_BEGIN.GM2", "TURN_BEGIN"},
 }
 
 func (a *App) startWatcher(dir string) {
