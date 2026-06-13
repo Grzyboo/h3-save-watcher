@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"log"
 	"path/filepath"
 	"time"
 
@@ -10,6 +11,11 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+)
+
+const (
+	logMaxAge       = 24 * time.Hour
+	logPruneInterval = time.Hour
 )
 
 // LogEntry represents a single activity log item.
@@ -78,6 +84,33 @@ func buildLogList(a *App) *widget.List {
 	}
 	a.logList = list
 	return list
+}
+
+func (a *App) startLogPruner() {
+	go func() {
+		ticker := time.NewTicker(logPruneInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			cutoff := time.Now().Add(-logMaxAge)
+			a.mu.Lock()
+			before := len(a.logs)
+			keep := a.logs[:0]
+			for _, e := range a.logs {
+				if !e.Time.Before(cutoff) {
+					keep = append(keep, e)
+				}
+			}
+			a.logs = keep
+			removed := before - len(a.logs)
+			a.mu.Unlock()
+			if removed > 0 {
+				log.Printf("log pruner: removed %d entr%s older than 24h", removed, map[bool]string{true: "y", false: "ies"}[removed == 1])
+				fyne.Do(func() { a.logList.Refresh() })
+			} else {
+				log.Println("log pruner: ran, no stale entries found")
+			}
+		}
+	}()
 }
 
 func buildLogPanel(a *App) fyne.CanvasObject {
