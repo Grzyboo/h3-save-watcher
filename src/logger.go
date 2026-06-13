@@ -16,19 +16,24 @@ import (
 type LogEntry struct {
 	Time    time.Time
 	Success bool
-	Message string
+	Key     TranslationKey
+	Args    []any
 }
 
-func (e LogEntry) String() string {
+func (e LogEntry) Format(t string) string {
 	status := ""
 	if !e.Success {
 		status = "ERR "
 	}
-	return fmt.Sprintf("[%s] %s%s", e.Time.Format("15:04:05"), status, e.Message)
+	msg := t
+	if len(e.Args) > 0 {
+		msg = fmt.Sprintf(t, e.Args...)
+	}
+	return fmt.Sprintf("[%s] %s%s", e.Time.Format("15:04:05"), status, msg)
 }
 
-func (a *App) addLog(success bool, msg string) {
-	entry := LogEntry{Time: time.Now(), Success: success, Message: msg}
+func (a *App) addLog(success bool, key TranslationKey, args ...any) {
+	entry := LogEntry{Time: time.Now(), Success: success, Key: key, Args: args}
 	a.mu.Lock()
 	a.logs = append(a.logs, entry)
 	n := len(a.logs)
@@ -60,7 +65,7 @@ func buildLogList(a *App) *widget.List {
 			entry := a.logs[id]
 			a.mu.Unlock()
 			lbl := obj.(*widget.Label)
-			lbl.SetText(entry.String())
+			lbl.SetText(entry.Format(a.T(entry.Key)))
 			if entry.Success {
 				lbl.Importance = widget.MediumImportance
 			} else {

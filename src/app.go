@@ -48,6 +48,9 @@ func (a *App) setLang(lang Lang) {
 			a.dirLabel.SetText(a.T(KeyNoDirectorySelected))
 		}
 		a.refreshStartupBtn()
+		if a.logList != nil {
+			a.logList.Refresh()
+		}
 	})
 }
 
