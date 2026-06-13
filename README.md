@@ -6,8 +6,8 @@ Coming soon :)
 
 --- 
 
-# For developers
-Application is written in Go + fyne as UI framework. Minimal setup is Go installation.
+# for developers
+Application is written in `Go` + `fyne` as UI framework. The minimal setup is Go installation.
 
 ## Go
 Install [GoLang](https://go.dev/).
@@ -20,6 +20,10 @@ In order to be able to create cross-release builds (binaries for Windows+MacOS+L
 - docker (for cross-compilation)
 - make sure `fyne-cross` is accessible (in your `$PATH`). It will probably be in `~/go/bin/fyne-cross` if you installed it with `go install`.
 
-## Build project
+## build project
 - `./build.sh` - local build
 - `RELEASE=1 ./build.sh` - release build (cross-compiles for all platforms and generates checksums)
+
+## .env file
+`.env.example` shows a template of the `.env` file. You can copy it and fill in the values.
+API_USER nad API_PASSWORD are secret by default. To be released later.
