@@ -14,20 +14,21 @@ import (
 
 // App holds all application state.
 type App struct {
-	mu            sync.Mutex
-	lang          Lang
-	firstRun      bool
-	watchDir      string
-	instanceID    string
-	watcher       *fsnotify.Watcher
-	stopPoll      chan struct{}
-	logs          []LogEntry
-	logList       *widget.List
-	dirLabel      *widget.Label
-	selectedLabel *widget.Label
-	browseBtn     *widget.Button
-	startupBtn    *widget.Button
-	window        fyne.Window
+	mu                 sync.Mutex
+	lang               Lang
+	firstRun           bool
+	watchDir           string
+	instanceID         string
+	watcher            *fsnotify.Watcher
+	stopPoll           chan struct{}
+	lastUploadedHash   map[string]string // keyed by fileType
+	logs               []LogEntry
+	logList            *widget.List
+	dirLabel           *widget.Label
+	selectedLabel      *widget.Label
+	browseBtn          *widget.Button
+	startupBtn         *widget.Button
+	window             fyne.Window
 }
 
 func (a *App) setLang(lang Lang) {

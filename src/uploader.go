@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +29,15 @@ func (a *App) uploadFile(path string, fileType string) {
 
 	filename := filepath.Base(path)
 	hash := fmt.Sprintf("%x", sha256.Sum256(data))
+
+	a.mu.Lock()
+	if a.lastUploadedHash[fileType] == hash {
+		a.mu.Unlock()
+		log.Printf("skipping duplicate upload: %s (%s), hash %s already uploaded", filename, fileType, hash)
+		return
+	}
+	a.lastUploadedHash[fileType] = hash
+	a.mu.Unlock()
 
 	header := data
 	if len(header) > headerSize {
