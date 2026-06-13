@@ -16,7 +16,7 @@ import (
 var endTurnFile = regexp.MustCompile(`^\d+\.GM2$`)
 
 const (
-	watchedFilesDebounce = 1 * time.Second
+	watchedFilesDebounce = 400 * time.Millisecond
 	hotaPollerDebounce   = 3 * time.Second
 	hotaPollerInterval   = 60 * time.Second
 )
