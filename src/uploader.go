@@ -23,7 +23,7 @@ const (
 func (a *App) uploadFile(path string, fileType string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogReadError), a.relPath(path), err))
+		a.addLog(false, KeyLogReadError, a.relPath(path), err)
 		return
 	}
 
@@ -56,11 +56,11 @@ func (a *App) uploadFile(path string, fileType string) {
 
 	analyzeResp, err := doRequest("POST", apiBase+"/upload/locked", "application/json", analyzeBody, a.instanceID)
 	if err != nil {
-		msg := fmt.Sprintf(a.T(KeyLogUploadError), a.relPath(path), err)
 		if errors.Is(err, syscall.ECONNREFUSED) {
-			msg = fmt.Sprintf(a.T(KeyLogConnectionRefused), a.relPath(path))
+			a.addLog(false, KeyLogConnectionRefused, a.relPath(path))
+		} else {
+			a.addLog(false, KeyLogUploadError, a.relPath(path), err)
 		}
-		a.addLog(false, msg)
 		return
 	}
 
@@ -72,26 +72,26 @@ func (a *App) uploadFile(path string, fileType string) {
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(analyzeResp, &analyzeResult); err != nil {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogInvalidAnalyzeResp), a.relPath(path)))
+		a.addLog(false, KeyLogInvalidAnalyzeResp, a.relPath(path))
 		return
 	}
 	if len(analyzeResult.Results) == 0 {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogEmptyResults), a.relPath(path)))
+		a.addLog(false, KeyLogEmptyResults, a.relPath(path))
 		return
 	}
 	result := analyzeResult.Results[0]
 	if result.Error != "" {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogServerError), a.relPath(path), result.Error))
+		a.addLog(false, KeyLogServerError, a.relPath(path), result.Error)
 		return
 	}
 
 	uploadResp, err := doRequest("POST", apiBase+"/upload/"+result.FileUploadKey, "application/octet-stream", data, a.instanceID)
 	if err != nil {
-		msg := fmt.Sprintf(a.T(KeyLogUploadError), a.relPath(path), err)
 		if errors.Is(err, syscall.ECONNREFUSED) {
-			msg = fmt.Sprintf(a.T(KeyLogConnectionRefused), a.relPath(path))
+			a.addLog(false, KeyLogConnectionRefused, a.relPath(path))
+		} else {
+			a.addLog(false, KeyLogUploadError, a.relPath(path), err)
 		}
-		a.addLog(false, msg)
 		return
 	}
 
@@ -101,15 +101,15 @@ func (a *App) uploadFile(path string, fileType string) {
 		UUID string `json:"uuid"`
 	}
 	if err := json.Unmarshal(uploadResp, &uploadResult); err != nil {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogInvalidUploadResp), a.relPath(path)))
+		a.addLog(false, KeyLogInvalidUploadResp, a.relPath(path))
 		return
 	}
 	if !uploadResult.Ok {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogServerRejected), a.relPath(path)))
+		a.addLog(false, KeyLogServerRejected, a.relPath(path))
 		return
 	}
 
-	a.addLog(true, fmt.Sprintf(a.T(KeyLogUploaded), a.relPath(path)))
+	a.addLog(true, KeyLogUploaded, a.relPath(path))
 }
 
 func doRequest(method, url, contentType string, body []byte, instanceID string) ([]byte, error) {

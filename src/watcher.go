@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -50,7 +49,7 @@ func (a *App) startWatcher(dir string) {
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogWatcherInitError), err))
+		a.addLog(false, KeyLogWatcherInitError, err)
 		return
 	}
 
@@ -62,7 +61,7 @@ func (a *App) startWatcher(dir string) {
 	}
 
 	if err := watcher.Add(watchTarget); err != nil {
-		a.addLog(false, fmt.Sprintf(a.T(KeyLogWatchError), err))
+		a.addLog(false, KeyLogWatchError, err)
 		watcher.Close()
 		return
 	}
@@ -78,7 +77,7 @@ func (a *App) startWatcher(dir string) {
 		absToType[abs] = wf.fileType
 	}
 
-	a.addLog(true, a.T(KeyLogWatching))
+	a.addLog(true, KeyLogWatching)
 
 	// Start the HotA Random poller.
 	stopPoll := make(chan struct{})
@@ -123,7 +122,7 @@ func (a *App) startWatcher(dir string) {
 				if !ok {
 					return
 				}
-				a.addLog(false, fmt.Sprintf(a.T(KeyLogWatcherError), err))
+				a.addLog(false, KeyLogWatcherError, err)
 			}
 		}
 	}()

@@ -40,6 +40,7 @@ func main() {
 	go state.checkAndUpdate()
 
 	buildUI(state, w, fyneApp)
+	state.startLogPruner()
 
 	if cfg.WatchDir != "" {
 		if root, err := resolveH3Root(cfg.WatchDir); err == nil {
