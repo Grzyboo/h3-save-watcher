@@ -18,6 +18,7 @@ const (
 	watchedFilesDebounce = 400 * time.Millisecond
 	hotaPollerDebounce   = 3 * time.Second
 	hotaPollerInterval   = 60 * time.Second
+	gameBeginDebounce    = 10 * time.Second // long debounce to make sure passwords file is parsed
 )
 
 var watchedFiles = []struct {
@@ -160,7 +161,7 @@ func snapshotHotaFiles(hotaDir string) map[string]struct{} {
 		if err != nil || d.IsDir() {
 			return nil
 		}
-		if endTurnFile.MatchString(d.Name()) {
+		if endTurnFile.MatchString(d.Name()) || d.Name() == "GAME_BEGIN.GM2" {
 			rel, _ := filepath.Rel(hotaDir, path)
 			known[rel] = struct{}{}
 		}
@@ -198,9 +199,6 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 				if err != nil || d.IsDir() {
 					return nil
 				}
-				if !endTurnFile.MatchString(d.Name()) {
-					return nil
-				}
 				rel, _ := filepath.Rel(hotaDir, path)
 				if _, exists := known[rel]; exists {
 					return nil
@@ -208,21 +206,40 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 				// New file — add to known and start debounce.
 				known[rel] = struct{}{}
 				absPath, _ := filepath.Abs(path)
-				log.Printf("hota poller: new file detected: %s", rel)
-				dmu.Lock()
-				if p, exists := debounce[absPath]; exists {
-					p.timer.Reset(hotaPollerDebounce)
-				} else {
-					p := &pending{absPath: absPath}
-					p.timer = time.AfterFunc(hotaPollerDebounce, func() {
-						dmu.Lock()
-						delete(debounce, absPath)
-						dmu.Unlock()
-						a.uploadFile(absPath, "TURN_END")
-					})
-					debounce[absPath] = p
+
+				if d.Name() == "GAME_BEGIN.GM2" {
+					log.Printf("hota poller: new GAME_BEGIN.GM2 detected: %s", rel)
+					dmu.Lock()
+					if p, exists := debounce[absPath]; exists {
+						p.timer.Reset(gameBeginDebounce)
+					} else {
+						p := &pending{absPath: absPath}
+						p.timer = time.AfterFunc(gameBeginDebounce, func() {
+							dmu.Lock()
+							delete(debounce, absPath)
+							dmu.Unlock()
+							a.uploadFile(absPath, "GAME_BEGIN")
+						})
+						debounce[absPath] = p
+					}
+					dmu.Unlock()
+				} else if endTurnFile.MatchString(d.Name()) {
+					log.Printf("hota poller: new file detected: %s", rel)
+					dmu.Lock()
+					if p, exists := debounce[absPath]; exists {
+						p.timer.Reset(hotaPollerDebounce)
+					} else {
+						p := &pending{absPath: absPath}
+						p.timer = time.AfterFunc(hotaPollerDebounce, func() {
+							dmu.Lock()
+							delete(debounce, absPath)
+							dmu.Unlock()
+							a.uploadFile(absPath, "TURN_END")
+						})
+						debounce[absPath] = p
+					}
+					dmu.Unlock()
 				}
-				dmu.Unlock()
 				return nil
 			})
 			if err != nil {
