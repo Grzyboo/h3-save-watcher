@@ -21,7 +21,8 @@ type App struct {
 	instanceID         string
 	watcher            *fsnotify.Watcher
 	stopPoll           chan struct{}
-	lastUploadedHash   map[string]string // keyed by fileType
+	lastUploadedHash       map[string]string // keyed by fileType
+	lastSentGameBeginPath string            // abs path of last sent GAME_BEGIN.GM2; empty if not yet sent
 	gameInfo           GameInfo
 	logs               []LogEntry
 	logList            *widget.List

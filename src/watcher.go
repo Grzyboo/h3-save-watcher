@@ -177,6 +177,8 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 	hotaDir := filepath.Join(root, "Games", "HotA Random")
 	known := snapshotHotaFiles(hotaDir)
 
+
+
 	type pending struct {
 		absPath string
 		timer   *time.Timer
@@ -197,6 +199,9 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 		case <-ticker.C:
 			err := filepath.WalkDir(hotaDir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil || d.IsDir() {
+					return nil
+				}
+				if d.Name() != "GAME_BEGIN.GM2" && !endTurnFile.MatchString(d.Name()) {
 					return nil
 				}
 				rel, _ := filepath.Rel(hotaDir, path)
@@ -239,6 +244,35 @@ func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
 						debounce[absPath] = p
 					}
 					dmu.Unlock()
+
+					// check if GAME_BEGIN.GM2 exists in the same directory
+					// as the new end-turn file and hasn't been sent yet.
+					gbPath, _ := filepath.Abs(filepath.Join(filepath.Dir(path), "GAME_BEGIN.GM2"))
+					if _, err := os.Stat(gbPath); err == nil {
+						a.mu.Lock()
+						alreadySent := a.lastSentGameBeginPath == gbPath
+						a.mu.Unlock()
+						if !alreadySent {
+							log.Printf("hota poller: triggering delayed GAME_BEGIN.GM2 upload: %s", gbPath)
+							dmu.Lock()
+							if p, exists := debounce[gbPath]; exists {
+								p.timer.Reset(gameBeginDebounce)
+							} else {
+								p := &pending{absPath: gbPath}
+								p.timer = time.AfterFunc(gameBeginDebounce, func() {
+									dmu.Lock()
+									delete(debounce, gbPath)
+									dmu.Unlock()
+									a.uploadFile(gbPath, "GAME_BEGIN")
+									a.mu.Lock()
+									a.lastSentGameBeginPath = gbPath
+									a.mu.Unlock()
+								})
+								debounce[gbPath] = p
+							}
+							dmu.Unlock()
+						}
+					}
 				}
 				return nil
 			})
