@@ -22,6 +22,7 @@ type App struct {
 	watcher            *fsnotify.Watcher
 	stopPoll           chan struct{}
 	lastUploadedHash   map[string]string // keyed by fileType
+	gameInfo           GameInfo
 	logs               []LogEntry
 	logList            *widget.List
 	dirLabel           *widget.Label

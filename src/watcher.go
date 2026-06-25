@@ -77,6 +77,9 @@ func (a *App) startWatcher(dir string) {
 		absToType[abs] = wf.fileType
 	}
 
+	// Load passwords.txt immediately so gameInfo is populated before any upload.
+	a.loadPasswordsFile(dir)
+
 	a.addLog(true, KeyLogWatching)
 
 	// Start the HotA Random poller.
@@ -86,6 +89,8 @@ func (a *App) startWatcher(dir string) {
 	a.mu.Unlock()
 	go a.startHotaPoller(dir, stopPoll)
 
+	absPasswords, _ := filepath.Abs(filepath.Join(dir, "Games", "passwords.txt"))
+
 	go func() {
 		type pending struct {
 			path     string
@@ -93,6 +98,7 @@ func (a *App) startWatcher(dir string) {
 			timer    *time.Timer
 		}
 		debounce := make(map[string]*pending)
+		var passwordsTimer *time.Timer
 		var dmu sync.Mutex
 
 		for {
@@ -102,6 +108,23 @@ func (a *App) startWatcher(dir string) {
 					return
 				}
 				absEvent, _ := filepath.Abs(event.Name)
+
+				if absEvent == absPasswords && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+					dmu.Lock()
+					if passwordsTimer != nil {
+						passwordsTimer.Reset(watchedFilesDebounce)
+					} else {
+						passwordsTimer = time.AfterFunc(watchedFilesDebounce, func() {
+							dmu.Lock()
+							passwordsTimer = nil
+							dmu.Unlock()
+							a.loadPasswordsFile(dir)
+						})
+					}
+					dmu.Unlock()
+					continue
+				}
+
 				if fileType, matched := absToType[absEvent]; matched && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
 					dmu.Lock()
 					if p, exists := debounce[absEvent]; exists {

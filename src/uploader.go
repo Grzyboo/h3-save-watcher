@@ -37,7 +37,19 @@ func (a *App) uploadFile(path string, fileType string) {
 		return
 	}
 	a.lastUploadedHash[fileType] = hash
+	info := a.gameInfo
 	a.mu.Unlock()
+
+	xHost := "0"
+	if info.IsHost {
+		xHost = "1"
+	}
+	gameHeaders := map[string]string{
+		"X-Host":         xHost,
+		"X-PlayerName":   info.PlayerName,
+		"X-OpponentName": info.OpponentName,
+		"X-GamePassword": info.Password,
+	}
 
 	header := data
 	if len(header) > headerSize {
@@ -54,7 +66,7 @@ func (a *App) uploadFile(path string, fileType string) {
 		}},
 	})
 
-	analyzeResp, err := doRequest("POST", apiBase+"/upload/locked", "application/json", analyzeBody, a.instanceID)
+	analyzeResp, err := doRequest("POST", apiBase+"/upload/locked", "application/json", analyzeBody, a.instanceID, gameHeaders)
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) {
 			a.addLog(false, KeyLogConnectionRefused, a.relPath(path))
@@ -85,7 +97,7 @@ func (a *App) uploadFile(path string, fileType string) {
 		return
 	}
 
-	uploadResp, err := doRequest("POST", apiBase+"/upload/"+result.FileUploadKey, "application/octet-stream", data, a.instanceID)
+	uploadResp, err := doRequest("POST", apiBase+"/upload/"+result.FileUploadKey, "application/octet-stream", data, a.instanceID, gameHeaders)
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) {
 			a.addLog(false, KeyLogConnectionRefused, a.relPath(path))
@@ -112,7 +124,7 @@ func (a *App) uploadFile(path string, fileType string) {
 	a.addLog(true, KeyLogUploaded, a.relPath(path))
 }
 
-func doRequest(method, url, contentType string, body []byte, instanceID string) ([]byte, error) {
+func doRequest(method, url, contentType string, body []byte, instanceID string, extraHeaders map[string]string) ([]byte, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -120,6 +132,9 @@ func doRequest(method, url, contentType string, body []byte, instanceID string) 
 	req.SetBasicAuth(apiUser, apiPassword)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("X-InstanceId", instanceID)
+	for k, v := range extraHeaders {
+		req.Header.Set(k, v)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
