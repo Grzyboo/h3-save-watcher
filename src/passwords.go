@@ -51,13 +51,15 @@ func stripBadges(s string) string {
 // parsePasswordsTxt parses the content of passwords.txt and returns
 // a GameInfo built from the last non-empty entry.
 func parsePasswordsTxt(data []byte) (GameInfo, error) {
-	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	lines := strings.Split(string(data), "\n")
 
-	// Find the last non-empty line.
+	// Find the last non-empty line. Trim \r so Windows-style line endings
+	// (\r\n) don't leave a stray \r on the final entry.
 	last := ""
 	for i := len(lines) - 1; i >= 0; i-- {
-		if strings.TrimSpace(lines[i]) != "" {
-			last = lines[i]
+		trimmed := strings.TrimRight(lines[i], "\r")
+		if strings.TrimSpace(trimmed) != "" {
+			last = trimmed
 			break
 		}
 	}
