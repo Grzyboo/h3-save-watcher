@@ -58,6 +58,11 @@ func (a *App) checkAndUpdate() {
 		return
 	}
 
+	if strings.Contains(appVersion, "SNAPSHOT") {
+		log.Println("updater: SNAPSHOT version detected, skipping auto-update")
+		return
+	}
+
 	log.Printf("updater: current version %s, checking %s", appVersion, githubRepo)
 
 	release, err := fetchLatestRelease(githubRepo)

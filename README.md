@@ -27,3 +27,6 @@ In order to be able to create cross-release builds (binaries for Windows+MacOS+L
 ## .env file
 `.env.example` shows a template of the `.env` file. You can copy it and fill in the values.
 API_USER nad API_PASSWORD are secret by default. To be released later.
+
+> [!WARNING]
+> To avoid auto-update of a locally built application, version in .env needs to contain "-SNAPSHOT", e.g. "VERSION=v0.1.0-SNAPSHOT"
