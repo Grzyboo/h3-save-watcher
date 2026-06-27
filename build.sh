@@ -7,8 +7,8 @@ set -euo pipefail
 # Generates src/buildvars.go with all build-time values, then compiles.
 #
 # Modes:
-#   ./build.sh              — local build, current OS/arch, fast
-#   RELEASE=1 ./build.sh    — cross-platform release via fyne-cross (Docker required)
+#   ./build.sh                    — local build, current OS/arch, fast
+#   RELEASE=v0.9.99 ./build.sh    — cross-platform release via fyne-cross (Docker required)
 #
 # All output goes to build/:
 #   build/h3savewatcher                   (local)
@@ -33,6 +33,14 @@ set +o allexport
 : "${VERSION:?VERSION not set in .env}"
 : "${GITHUB_REPO:?GITHUB_REPO not set in .env}"
 
+# If RELEASE is set with a version tag, override VERSION
+if [ -n "${RELEASE:-}" ]; then
+  VERSION="${RELEASE}"
+elif [ "${RELEASE+defined}" = "defined" ]; then
+  echo "ERROR: RELEASE is set but empty. Provide a version tag, e.g. RELEASE=v1.0.0" >&2
+  exit 1
+fi
+
 # Strip "v" prefix for fyne-cross -app-version (expects "1.2.3" not "v1.2.3")
 APP_VERSION="${VERSION#v}"
 
@@ -56,7 +64,7 @@ echo "Generated src/buildvars.go (version=${VERSION})"
 
 mkdir -p build
 
-if [ "${RELEASE:-}" = "1" ]; then
+if [ -n "${RELEASE:-}" ]; then
   # ---------------------------------------------------------------------------
   # Cross-platform release build via fyne-cross.
   # Requires Docker running. Install fyne-cross: go install github.com/fyne-io/fyne-cross@latest
@@ -64,8 +72,9 @@ if [ "${RELEASE:-}" = "1" ]; then
   echo "Building release ${VERSION} for all platforms via fyne-cross..."
 
   fyne-cross linux   -arch amd64       -icon src/Icon.png -app-version "${APP_VERSION}" ./src/
-  fyne-cross darwin  -arch amd64,arm64 -icon src/Icon.png -app-version "${APP_VERSION}" ./src/
   fyne-cross windows -arch amd64       -icon src/Icon.png -app-version "${APP_VERSION}" ./src/
+  # You might remove macOS binaries if getting "[✗] macOSX SDK path is mandatory error"
+  fyne-cross darwin  -arch amd64,arm64 -icon src/Icon.png -app-version "${APP_VERSION}" ./src/
 
   echo "Copying and renaming artifacts..."
   cp fyne-cross/bin/linux-amd64/src                 build/h3savewatcher-linux-amd64
