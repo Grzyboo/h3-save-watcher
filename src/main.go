@@ -74,9 +74,13 @@ func main() {
 	if state.watcher != nil {
 		state.watcher.Close()
 	}
-	if state.stopPoll != nil {
-		close(state.stopPoll)
-		state.stopPoll = nil
+	if state.gameFolderCancel != nil {
+		state.gameFolderCancel()
+		state.gameFolderCancel = nil
+	}
+	if state.gameFolderDebounce != nil {
+		state.gameFolderDebounce.Stop()
+		state.gameFolderDebounce = nil
 	}
 	state.mu.Unlock()
 }

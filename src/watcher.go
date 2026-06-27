@@ -1,11 +1,14 @@
 package main
 
 import (
-	"io/fs"
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,9 +18,9 @@ import (
 var endTurnFile = regexp.MustCompile(`^\d+\.GM2$`)
 
 const (
-	watchedFilesDebounce = 400 * time.Millisecond
-	hotaPollerDebounce   = 3 * time.Second
-	hotaPollerInterval   = 60 * time.Second
+	watchedFilesDebounce    = 400 * time.Millisecond
+	gameFolderDebounceDelay = 5 * time.Second
+	gameFolderRetryInterval = 60 * time.Second
 )
 
 var watchedFiles = []struct {
@@ -35,11 +38,15 @@ func (a *App) startWatcher(dir string) {
 		_ = a.watcher.Close()
 		a.watcher = nil
 	}
-	// Stop any running hota poller before starting a new one.
-	if a.stopPoll != nil {
-		close(a.stopPoll)
-		a.stopPoll = nil
+	if a.gameFolderCancel != nil {
+		a.gameFolderCancel()
+		a.gameFolderCancel = nil
 	}
+	if a.gameFolderDebounce != nil {
+		a.gameFolderDebounce.Stop()
+		a.gameFolderDebounce = nil
+	}
+	a.watchedGameFolder = ""
 	a.watchDir = dir
 	a.mu.Unlock()
 
@@ -53,7 +60,6 @@ func (a *App) startWatcher(dir string) {
 		return
 	}
 
-	// Watch Games/ subdir if it exists; otherwise fall back to root dir.
 	gamesDir := filepath.Join(dir, "Games")
 	watchTarget := gamesDir
 	if _, err := os.Stat(gamesDir); os.IsNotExist(err) {
@@ -70,24 +76,15 @@ func (a *App) startWatcher(dir string) {
 	a.watcher = watcher
 	a.mu.Unlock()
 
-	// Build abs path -> type map and log each watched file.
 	absToType := make(map[string]string, len(watchedFiles))
 	for _, wf := range watchedFiles {
 		abs, _ := filepath.Abs(filepath.Join(dir, wf.relPath))
 		absToType[abs] = wf.fileType
 	}
 
-	// Load passwords.txt immediately so gameInfo is populated before any upload.
 	a.loadPasswordsFile(dir)
 
 	a.addLog(true, KeyLogWatching)
-
-	// Start the HotA Random poller.
-	stopPoll := make(chan struct{})
-	a.mu.Lock()
-	a.stopPoll = stopPoll
-	a.mu.Unlock()
-	go a.startHotaPoller(dir, stopPoll)
 
 	absPasswords, _ := filepath.Abs(filepath.Join(dir, "Games", "passwords.txt"))
 
@@ -128,19 +125,51 @@ func (a *App) startWatcher(dir string) {
 				if fileType, matched := absToType[absEvent]; matched && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
 					dmu.Lock()
 					if p, exists := debounce[absEvent]; exists {
-				        p.timer.Reset(watchedFilesDebounce)
-                    } else {
-                        p := &pending{path: event.Name, fileType: fileType}
-                        p.timer = time.AfterFunc(watchedFilesDebounce, func() {
-                            dmu.Lock()
-                            delete(debounce, absEvent)
-                            dmu.Unlock()
-                            a.uploadFile(p.path, p.fileType)
-                        })
-                        debounce[absEvent] = p
-                    }
+						p.timer.Reset(watchedFilesDebounce)
+					} else {
+						p := &pending{path: event.Name, fileType: fileType}
+						p.timer = time.AfterFunc(watchedFilesDebounce, func() {
+							dmu.Lock()
+							delete(debounce, absEvent)
+							dmu.Unlock()
+							a.uploadFile(p.path, p.fileType)
+						})
+						debounce[absEvent] = p
+					}
 					dmu.Unlock()
+					continue
 				}
+
+				a.mu.Lock()
+				gf := a.watchedGameFolder
+				a.mu.Unlock()
+				if gf != "" && strings.HasPrefix(absEvent, gf+string(os.PathSeparator)) && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+					fname := filepath.Base(event.Name)
+					var ft string
+					switch {
+					case endTurnFile.MatchString(fname) && event.Op&fsnotify.Create != 0:
+						ft = "TURN_END"
+					case fname == "GAME_BEGIN.GM2":
+						ft = "GAME_BEGIN"
+					}
+					if ft != "" {
+						dmu.Lock()
+						if p, exists := debounce[absEvent]; exists {
+							p.timer.Reset(watchedFilesDebounce)
+						} else {
+							p := &pending{path: event.Name, fileType: ft}
+							p.timer = time.AfterFunc(watchedFilesDebounce, func() {
+								dmu.Lock()
+								delete(debounce, absEvent)
+								dmu.Unlock()
+								a.uploadFile(p.path, p.fileType)
+							})
+							debounce[absEvent] = p
+						}
+						dmu.Unlock()
+					}
+				}
+
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
@@ -151,83 +180,150 @@ func (a *App) startWatcher(dir string) {
 	}()
 }
 
-// snapshotHotaFiles walks hotaDir and returns a set of relative paths for all
-// existing XXX.GM2 files. Used to establish the baseline on startup — these
-// files are never uploaded.
-func snapshotHotaFiles(hotaDir string) map[string]struct{} {
-	known := make(map[string]struct{})
-	_ = filepath.WalkDir(hotaDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		if endTurnFile.MatchString(d.Name()) {
-			rel, _ := filepath.Rel(hotaDir, path)
-			known[rel] = struct{}{}
-		}
-		return nil
-	})
-	log.Printf("hota snapshot: %d existing files under %s", len(known), hotaDir)
-	return known
+// scheduleGameFolderWatch schedules a game folder resolution attempt after
+// a 5-second debounce. It cancels any previously scheduled attempt or retry loop.
+func (a *App) scheduleGameFolderWatch() {
+	a.mu.Lock()
+	if a.gameFolderCancel != nil {
+		a.gameFolderCancel()
+		a.gameFolderCancel = nil
+	}
+	if a.gameFolderDebounce != nil {
+		a.gameFolderDebounce.Reset(gameFolderDebounceDelay)
+	} else {
+		a.gameFolderDebounce = time.AfterFunc(gameFolderDebounceDelay, func() {
+			a.mu.Lock()
+			a.gameFolderDebounce = nil
+			a.mu.Unlock()
+			a.resolveAndWatchGameFolder()
+		})
+	}
+	a.mu.Unlock()
 }
 
-// startHotaPoller polls Games/HotA Random/ every 60 seconds for new XXX.GM2
-// files. New files (not in the initial snapshot) are uploaded with a 3-second debounce
-func (a *App) startHotaPoller(root string, stopPoll <-chan struct{}) {
-	hotaDir := filepath.Join(root, "Games", "HotA Random")
-	known := snapshotHotaFiles(hotaDir)
+// resolveAndWatchGameFolder determines the current game folder and adds it
+// to the fsnotify watcher. If the game folder cannot be found, it retries
+// every minute.
+func (a *App) resolveAndWatchGameFolder() {
+	a.mu.Lock()
+	dir := a.watchDir
+	info := a.gameInfo
+	a.mu.Unlock()
 
-	type pending struct {
-		absPath string
-		timer   *time.Timer
+	if dir == "" || info.OpponentName == "" {
+		return
 	}
-	debounce := make(map[string]*pending)
-	var dmu sync.Mutex
 
-	ticker := time.NewTicker(hotaPollerInterval)
-	defer ticker.Stop()
+	folder, err := a.determineGameFolder(dir, info)
+	if err != nil {
+		log.Printf("game folder not found: %v", err)
+		a.addLog(false, KeyLogGameFolderNotFound)
 
-	log.Printf("hota poller started, watching: %s", hotaDir)
+		ctx, cancel := context.WithCancel(context.Background())
+		a.mu.Lock()
+		if a.gameFolderCancel != nil {
+			a.gameFolderCancel()
+		}
+		a.gameFolderCancel = cancel
+		a.mu.Unlock()
 
-	for {
-		select {
-		case <-stopPoll:
-			log.Println("hota poller stopped")
-			return
-		case <-ticker.C:
-			err := filepath.WalkDir(hotaDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil || d.IsDir() {
-					return nil
+		go func() {
+			ticker := time.NewTicker(gameFolderRetryInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					folder, err := a.determineGameFolder(dir, info)
+					if err != nil {
+						log.Printf("game folder retry: %v", err)
+						continue
+					}
+					a.switchGameFolder(folder)
+					cancel()
+					return
 				}
-				if !endTurnFile.MatchString(d.Name()) {
-					return nil
-				}
-				rel, _ := filepath.Rel(hotaDir, path)
-				if _, exists := known[rel]; exists {
-					return nil
-				}
-				// New file — add to known and start debounce.
-				known[rel] = struct{}{}
-				absPath, _ := filepath.Abs(path)
-				log.Printf("hota poller: new file detected: %s", rel)
-				dmu.Lock()
-				if p, exists := debounce[absPath]; exists {
-					p.timer.Reset(hotaPollerDebounce)
-				} else {
-					p := &pending{absPath: absPath}
-					p.timer = time.AfterFunc(hotaPollerDebounce, func() {
-						dmu.Lock()
-						delete(debounce, absPath)
-						dmu.Unlock()
-						a.uploadFile(absPath, "TURN_END")
-					})
-					debounce[absPath] = p
-				}
-				dmu.Unlock()
-				return nil
-			})
-			if err != nil {
-				log.Printf("hota poller walk error: %v", err)
 			}
+		}()
+		return
+	}
+
+	a.switchGameFolder(folder)
+}
+
+// switchGameFolder removes the old game folder watch and starts watching the new one.
+func (a *App) switchGameFolder(folder string) {
+	a.mu.Lock()
+	oldFolder := a.watchedGameFolder
+	watcher := a.watcher
+	a.watchedGameFolder = folder
+	a.mu.Unlock()
+
+	if oldFolder != "" && oldFolder != folder && watcher != nil {
+		_ = watcher.Remove(oldFolder)
+	}
+
+	if watcher != nil {
+		if err := watcher.Add(folder); err != nil {
+			a.addLog(false, KeyLogWatchError, err)
+			return
 		}
 	}
+
+	a.addLog(true, KeyLogGameFolderWatching, folder)
+}
+
+// determineGameFolder finds the best-matching game folder under
+// <root>/Games/HotA Random/<opponent-name>/ by comparing folder name timestamps
+// against the reference time from passwords.txt.
+func (a *App) determineGameFolder(root string, info GameInfo) (string, error) {
+	opponentDir := filepath.Join(root, "Games", "HotA Random", info.OpponentName)
+	entries, err := os.ReadDir(opponentDir)
+	if err != nil {
+		return "", err
+	}
+
+	refTime := info.GameTime.Add(-1 * time.Minute)
+	folderTimeRe := regexp.MustCompile(`^(\d{4})\.(\d{2})\.(\d{2}) (\d{2});(\d{2}) `)
+
+	type match struct {
+		path string
+		mod  time.Time
+	}
+	var candidates []match
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		m := folderTimeRe.FindStringSubmatch(name)
+		if m == nil {
+			continue
+		}
+		parsed, err := time.Parse("2006.01.02 15;04", m[1]+"."+m[2]+"."+m[3]+" "+m[4]+";"+m[5])
+		if err != nil {
+			continue
+		}
+		if parsed.Before(refTime) {
+			continue
+		}
+		fullPath := filepath.Join(opponentDir, name)
+		fi, err := os.Stat(fullPath)
+		if err != nil {
+			continue
+		}
+		candidates = append(candidates, match{path: fullPath, mod: fi.ModTime()})
+	}
+
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no matching game folder found in %s", opponentDir)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].mod.After(candidates[j].mod)
+	})
+
+	return candidates[0].path, nil
 }
