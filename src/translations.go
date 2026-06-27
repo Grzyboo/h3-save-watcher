@@ -37,8 +37,7 @@ const (
 	KeyLogWatching             TranslationKey = "log_watching"
 	KeyLogPasswordsReadError   TranslationKey = "log_passwords_read_error"
 	KeyLogPasswordsParseError  TranslationKey = "log_passwords_parse_error"
-	KeyLogGameFolderWatching   TranslationKey = "log_game_folder_watching"
-	KeyLogGameFolderNotFound   TranslationKey = "log_game_folder_not_found"
+
 
 	// Startup
 	KeyStartupEnable          TranslationKey = "startup_enable"
@@ -83,8 +82,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "watching BATTLE save files",
 		KeyLogPasswordsReadError:   "passwords.txt: read error: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: parse error: %v",
-		KeyLogGameFolderWatching:   "watching game folder: %s",
-		KeyLogGameFolderNotFound:   "game folder not found yet, retrying in 60s",
+
 	KeyStartupEnable:           "Autostart: off",
 	KeyStartupDisable:          "Autostart: on",
 		KeyStartupEnableTitle:      "Enable startup",
@@ -123,8 +121,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "obserwowanie plików zapisu BATTLE",
 		KeyLogPasswordsReadError:   "passwords.txt: błąd odczytu: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: błąd parsowania: %v",
-		KeyLogGameFolderWatching:   "obserwowanie folderu gry: %s",
-		KeyLogGameFolderNotFound:   "folder gry nie znaleziony, ponowna próba za 60s",
+
 	KeyStartupEnable:           "Autostart: wył.",
 	KeyStartupDisable:          "Autostart: wł.",
 		KeyStartupEnableTitle:      "Włącz autostart",
@@ -163,8 +160,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "спостереження за файлами збереження BATTLE",
 		KeyLogPasswordsReadError:   "passwords.txt: помилка читання: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: помилка парсингу: %v",
-		KeyLogGameFolderWatching:   "спостереження за папкою гри: %s",
-		KeyLogGameFolderNotFound:   "папку гри не знайдено, повтор через 60с",
+
 	KeyStartupEnable:           "Автозапуск: вимк.",
 	KeyStartupDisable:          "Автозапуск: увімк.",
 		KeyStartupEnableTitle:      "Увімкнути автозапуск",
@@ -203,8 +199,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "наблюдение за файлами сохранения BATTLE",
 		KeyLogPasswordsReadError:   "passwords.txt: ошибка чтения: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: ошибка разбора: %v",
-		KeyLogGameFolderWatching:   "наблюдение за папкой игры: %s",
-		KeyLogGameFolderNotFound:   "папка игры не найдена, повтор через 60с",
+
 	KeyStartupEnable:           "Автозапуск: выкл.",
 	KeyStartupDisable:          "Автозапуск: вкл.",
 		KeyStartupEnableTitle:      "Включить автозапуск",

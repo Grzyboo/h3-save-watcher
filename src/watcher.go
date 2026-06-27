@@ -217,7 +217,6 @@ func (a *App) resolveAndWatchGameFolder() {
 	folder, err := a.determineGameFolder(dir, info)
 	if err != nil {
 		log.Printf("game folder not found: %v", err)
-		a.addLog(false, KeyLogGameFolderNotFound)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		a.mu.Lock()
@@ -271,7 +270,7 @@ func (a *App) switchGameFolder(folder string) {
 		}
 	}
 
-	a.addLog(true, KeyLogGameFolderWatching, folder)
+	log.Printf("watching game folder: %s", folder)
 }
 
 // determineGameFolder finds the best-matching game folder under
