@@ -234,11 +234,23 @@ func (a *App) resolveAndWatchGameFolder() {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
+					a.mu.Lock()
+					dir := a.watchDir
+					info := a.gameInfo
+					a.mu.Unlock()
+
 					folder, err := a.determineGameFolder(dir, info)
 					if err != nil {
 						log.Printf("game folder retry: %v", err)
 						continue
 					}
+
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+
 					a.switchGameFolder(folder)
 					cancel()
 					return
