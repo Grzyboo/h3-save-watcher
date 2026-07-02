@@ -271,6 +271,32 @@ func (a *App) switchGameFolder(folder string) {
 	}
 
 	log.Printf("watching game folder: %s", folder)
+	a.uploadExistingGameFolderFiles(folder)
+}
+
+func (a *App) uploadExistingGameFolderFiles(folder string) {
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		a.addLog(false, KeyLogReadError, folder, err)
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		fname := entry.Name()
+		var ft string
+		switch {
+		case endTurnFile.MatchString(fname):
+			ft = "TURN_END"
+		case fname == "GAME_BEGIN.GM2":
+			ft = "GAME_BEGIN"
+		}
+		if ft != "" {
+			a.uploadFile(filepath.Join(folder, fname), ft)
+		}
+	}
 }
 
 // determineGameFolder finds the best-matching game folder under
