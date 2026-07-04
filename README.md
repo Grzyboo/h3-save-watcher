@@ -22,7 +22,7 @@ In order to be able to create cross-release builds (binaries for Windows+MacOS+L
 
 ## build project
 - `./build.sh` - local build
-- `RELEASE=1 ./build.sh` - release build (cross-compiles for all platforms and generates checksums)
+- `RELEASE=v0.8.88 ./build.sh` - release build (cross-compiles for all platforms and generates checksums). Include an appropriate version.
 
 ## .env file
 `.env.example` shows a template of the `.env` file. You can copy it and fill in the values.
