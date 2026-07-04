@@ -36,6 +36,10 @@ type App struct {
 	watchedGameFolder   string
 	gameFolderCancel    context.CancelFunc
 	gameFolderDebounce  *time.Timer
+
+	// Persisted list of files already sent from each game folder.
+	sentFoldersCache    SentFoldersCache
+	sentFoldersMu       sync.Mutex
 }
 
 func (a *App) setLang(lang Lang) {
