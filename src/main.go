@@ -33,7 +33,7 @@ func main() {
 		startLang = LangEN
 	}
 
-	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string)}
+	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache()}
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
 	// Check for updates in background — fails silently, app keeps running.
