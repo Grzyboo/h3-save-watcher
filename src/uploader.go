@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -122,6 +123,20 @@ func (a *App) uploadFile(path string, fileType string) {
 	}
 
 	a.addLog(true, KeyLogUploaded, a.relPath(path))
+
+	a.sentFoldersMu.Lock()
+	folder := a.watchedGameFolder
+	if folder != "" {
+		absPath, _ := filepath.Abs(path)
+		absFolder, _ := filepath.Abs(folder)
+		if strings.HasPrefix(absPath, absFolder+string(os.PathSeparator)) {
+			a.sentFoldersCache.addFile(absFolder, filename)
+			if err := a.sentFoldersCache.save(); err != nil {
+				log.Printf("failed to save sent folders cache: %v", err)
+			}
+		}
+	}
+	a.sentFoldersMu.Unlock()
 }
 
 func doRequest(method, url, contentType string, body []byte, instanceID string, extraHeaders map[string]string) ([]byte, error) {

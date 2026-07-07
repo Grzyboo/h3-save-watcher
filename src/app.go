@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -20,7 +22,6 @@ type App struct {
 	watchDir           string
 	instanceID         string
 	watcher            *fsnotify.Watcher
-	stopPoll           chan struct{}
 	lastUploadedHash   map[string]string // keyed by fileType
 	gameInfo           GameInfo
 	logs               []LogEntry
@@ -30,6 +31,15 @@ type App struct {
 	browseBtn          *widget.Button
 	startupBtn         *widget.Button
 	window             fyne.Window
+
+	// Game folder watching
+	watchedGameFolder   string
+	gameFolderCancel    context.CancelFunc
+	gameFolderDebounce  *time.Timer
+
+	// Persisted list of files already sent from each game folder.
+	sentFoldersCache    SentFoldersCache
+	sentFoldersMu       sync.Mutex
 }
 
 func (a *App) setLang(lang Lang) {

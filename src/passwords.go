@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // GameInfo holds data parsed from the last entry of passwords.txt.
@@ -16,6 +17,7 @@ type GameInfo struct {
 	PlayerName   string
 	OpponentName string
 	Password     string
+	GameTime     time.Time // mod time of passwords.txt when parsed
 }
 
 // badgeChars are the special prefix characters that mark donator/moderator status.
@@ -105,7 +107,14 @@ func (a *App) loadPasswordsFile(dir string) {
 		return
 	}
 
+	// Record the file's modification time as the game reference time - TODO: read from file contents?
+	if fi, err := os.Stat(path); err == nil {
+		info.GameTime = fi.ModTime()
+	}
+
 	a.mu.Lock()
 	a.gameInfo = info
 	a.mu.Unlock()
+
+	a.scheduleGameFolderWatch()
 }

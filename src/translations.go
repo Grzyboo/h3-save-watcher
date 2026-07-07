@@ -38,6 +38,7 @@ const (
 	KeyLogPasswordsReadError   TranslationKey = "log_passwords_read_error"
 	KeyLogPasswordsParseError  TranslationKey = "log_passwords_parse_error"
 
+
 	// Startup
 	KeyStartupEnable          TranslationKey = "startup_enable"
 	KeyStartupDisable         TranslationKey = "startup_disable"
@@ -81,6 +82,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "watching BATTLE save files",
 		KeyLogPasswordsReadError:   "passwords.txt: read error: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: parse error: %v",
+
 	KeyStartupEnable:           "Autostart: off",
 	KeyStartupDisable:          "Autostart: on",
 		KeyStartupEnableTitle:      "Enable startup",
@@ -119,6 +121,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "obserwowanie plików zapisu BATTLE",
 		KeyLogPasswordsReadError:   "passwords.txt: błąd odczytu: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: błąd parsowania: %v",
+
 	KeyStartupEnable:           "Autostart: wył.",
 	KeyStartupDisable:          "Autostart: wł.",
 		KeyStartupEnableTitle:      "Włącz autostart",
@@ -157,6 +160,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "спостереження за файлами збереження BATTLE",
 		KeyLogPasswordsReadError:   "passwords.txt: помилка читання: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: помилка парсингу: %v",
+
 	KeyStartupEnable:           "Автозапуск: вимк.",
 	KeyStartupDisable:          "Автозапуск: увімк.",
 		KeyStartupEnableTitle:      "Увімкнути автозапуск",
@@ -195,6 +199,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatching:             "наблюдение за файлами сохранения BATTLE",
 		KeyLogPasswordsReadError:   "passwords.txt: ошибка чтения: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: ошибка разбора: %v",
+
 	KeyStartupEnable:           "Автозапуск: выкл.",
 	KeyStartupDisable:          "Автозапуск: вкл.",
 		KeyStartupEnableTitle:      "Включить автозапуск",

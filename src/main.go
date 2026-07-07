@@ -33,7 +33,7 @@ func main() {
 		startLang = LangEN
 	}
 
-	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string)}
+	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache()}
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
 	// Check for updates in background — fails silently, app keeps running.
@@ -74,9 +74,13 @@ func main() {
 	if state.watcher != nil {
 		state.watcher.Close()
 	}
-	if state.stopPoll != nil {
-		close(state.stopPoll)
-		state.stopPoll = nil
+	if state.gameFolderCancel != nil {
+		state.gameFolderCancel()
+		state.gameFolderCancel = nil
+	}
+	if state.gameFolderDebounce != nil {
+		state.gameFolderDebounce.Stop()
+		state.gameFolderDebounce = nil
 	}
 	state.mu.Unlock()
 }
