@@ -22,6 +22,19 @@ const (
 )
 
 func (a *App) uploadFile(path string, fileType string) {
+	a.uploadMu.Lock()
+	a.uploadCount++
+	a.uploadMu.Unlock()
+	defer func() {
+		a.uploadMu.Lock()
+		a.uploadCount--
+		if a.uploadCount < 0 {
+			a.uploadCount = 0
+		}
+		a.uploadCond.Broadcast()
+		a.uploadMu.Unlock()
+	}()
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		a.addLog(false, KeyLogReadError, a.relPath(path), err)

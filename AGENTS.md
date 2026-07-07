@@ -4,3 +4,4 @@ It watches changes in player's directory of heroes of might and magic III and se
 
 # build
 use `./build.sh`
+The program has no tests, running the build is enough of a verification.

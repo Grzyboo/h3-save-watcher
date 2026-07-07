@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 func main() {
@@ -34,10 +35,11 @@ func main() {
 	}
 
 	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache()}
+	state.uploadCond = sync.NewCond(&state.uploadMu)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
-	// Check for updates in background — fails silently, app keeps running.
-	go state.checkAndUpdate()
+	// Check for updates every 5 minutes in background — fails silently, app keeps running.
+	go state.startUpdateChecker()
 
 	buildUI(state, w, fyneApp)
 	state.startLogPruner()

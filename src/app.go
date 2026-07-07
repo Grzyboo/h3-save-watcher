@@ -16,30 +16,35 @@ import (
 
 // App holds all application state.
 type App struct {
-	mu                 sync.Mutex
-	lang               Lang
-	firstRun           bool
-	watchDir           string
-	instanceID         string
-	watcher            *fsnotify.Watcher
-	lastUploadedHash   map[string]string // keyed by fileType
-	gameInfo           GameInfo
-	logs               []LogEntry
-	logList            *widget.List
-	dirLabel           *widget.Label
-	selectedLabel      *widget.Label
-	browseBtn          *widget.Button
-	startupBtn         *widget.Button
-	window             fyne.Window
+	mu               sync.Mutex
+	lang             Lang
+	firstRun         bool
+	watchDir         string
+	instanceID       string
+	watcher          *fsnotify.Watcher
+	lastUploadedHash map[string]string // keyed by fileType
+	gameInfo         GameInfo
+	logs             []LogEntry
+	logList          *widget.List
+	dirLabel         *widget.Label
+	selectedLabel    *widget.Label
+	browseBtn        *widget.Button
+	startupBtn       *widget.Button
+	window           fyne.Window
 
 	// Game folder watching
-	watchedGameFolder   string
-	gameFolderCancel    context.CancelFunc
-	gameFolderDebounce  *time.Timer
+	watchedGameFolder  string
+	gameFolderCancel   context.CancelFunc
+	gameFolderDebounce *time.Timer
 
 	// Persisted list of files already sent from each game folder.
-	sentFoldersCache    SentFoldersCache
-	sentFoldersMu       sync.Mutex
+	sentFoldersCache SentFoldersCache
+	sentFoldersMu    sync.Mutex
+
+	// Active upload tracking (used to wait for uploads before auto-restart).
+	uploadMu    sync.Mutex
+	uploadCond  *sync.Cond
+	uploadCount int
 }
 
 func (a *App) setLang(lang Lang) {

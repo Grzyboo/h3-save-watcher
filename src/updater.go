@@ -18,14 +18,16 @@ import (
 )
 
 const (
-	updateCheckTimeout = 30 * time.Second
-	updateDownTimeout  = 5 * time.Minute
+	updateCheckTimeout  = 30 * time.Second
+	updateDownTimeout   = 5 * time.Minute
+	updateCheckInterval = 5 * time.Minute
+	uploadWaitTimeout   = 60 * time.Second
 )
 
 // githubRelease is the subset of the GitHub releases API response we care about.
 type githubRelease struct {
-	TagName string          `json:"tag_name"`
-	Assets  []githubAsset   `json:"assets"`
+	TagName string        `json:"tag_name"`
+	Assets  []githubAsset `json:"assets"`
 }
 
 type githubAsset struct {
@@ -47,6 +49,55 @@ func cleanOldBinary() {
 		} else {
 			log.Printf("updater: removed old binary %s", old)
 		}
+	}
+}
+
+func (a *App) startUpdateChecker() {
+	for {
+		a.checkAndUpdate()
+		time.Sleep(updateCheckInterval)
+	}
+}
+
+func (a *App) stopWatcher() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.watcher != nil {
+		if err := a.watcher.Close(); err != nil {
+			log.Printf("updater: error closing watcher: %v", err)
+		}
+		a.watcher = nil
+		log.Println("updater: stopped file watcher before restart")
+	}
+	if a.gameFolderCancel != nil {
+		a.gameFolderCancel()
+		a.gameFolderCancel = nil
+	}
+	if a.gameFolderDebounce != nil {
+		a.gameFolderDebounce.Stop()
+		a.gameFolderDebounce = nil
+	}
+}
+
+// waitForUploads blocks until all active uploads finish or the timeout expires.
+// It returns true if all uploads finished before the timeout.
+func (a *App) waitForUploads(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		a.uploadMu.Lock()
+		for a.uploadCount > 0 {
+			a.uploadCond.Wait()
+		}
+		a.uploadMu.Unlock()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
 	}
 }
 
@@ -175,7 +226,16 @@ func (a *App) checkAndUpdate() {
 	}
 
 	success = true
-	log.Printf("updater: updated to %s, restarting", release.TagName)
+	log.Printf("updater: updated to %s, preparing to restart", release.TagName)
+
+	// Stop watching for further file changes, then wait briefly for any
+	// in-progress uploads to finish before restarting.
+	a.stopWatcher()
+	if a.waitForUploads(uploadWaitTimeout) {
+		log.Println("updater: all active uploads finished, restarting")
+	} else {
+		log.Printf("updater: timed out waiting for uploads after %v, restarting anyway", uploadWaitTimeout)
+	}
 
 	// Restart: launch a new copy of the (now-updated) binary with the same arguments, then exit this process.
 	restartSelf(exe)
