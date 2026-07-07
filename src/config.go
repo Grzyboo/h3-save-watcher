@@ -12,9 +12,10 @@ const configFile = "h3savewatcher.json"
 
 // Config holds persisted application state.
 type Config struct {
-	WatchDir   string `json:"watch_dir"`
-	Language   string `json:"language"`
-	InstanceID string `json:"instance_id"`
+	WatchDir         string `json:"watch_dir"`
+	Language         string `json:"language"`
+	InstanceID       string `json:"instance_id"`
+	UpdatedToVersion string `json:"updated_to_version,omitempty"`
 }
 
 // ensureInstanceID generates and persists a UUID v4 if one is not already set.
@@ -56,4 +57,19 @@ func saveConfig(cfg Config) {
 		return
 	}
 	_ = os.WriteFile(configPath(), data, 0644)
+}
+
+// setPendingUpdateVersion stores the version the application is about to be
+// updated to, so the new process can show a one-time notification after restart.
+func setPendingUpdateVersion(version string) {
+	cfg := loadConfig()
+	cfg.UpdatedToVersion = version
+	saveConfig(cfg)
+}
+
+// clearPendingUpdateVersion removes the pending update version from the config.
+func clearPendingUpdateVersion() {
+	cfg := loadConfig()
+	cfg.UpdatedToVersion = ""
+	saveConfig(cfg)
 }

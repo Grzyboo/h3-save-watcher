@@ -238,7 +238,7 @@ func (a *App) checkAndUpdate() {
 	}
 
 	// Restart: launch a new copy of the (now-updated) binary with the same arguments, then exit this process.
-	restartSelf(exe)
+	restartSelf(exe, release.TagName)
 }
 
 func fetchLatestRelease(repo string) (*githubRelease, error) {
@@ -366,9 +366,28 @@ func parseSemver(s string) [3]int {
 	return out
 }
 
+// showUpdateNotification checks whether the application was just updated and,
+// if so, displays a one-time UI log entry and clears the pending version.
+func (a *App) showUpdateNotification() {
+	cfg := loadConfig()
+	raw := strings.TrimSpace(cfg.UpdatedToVersion)
+	if raw == "" {
+		return
+	}
+	cfg.UpdatedToVersion = ""
+	saveConfig(cfg)
+
+	version := strings.TrimPrefix(raw, "v")
+	if version != "" {
+		a.addLog(true, KeyLogUpdated, version)
+	}
+}
+
 // restartSelf launches a fresh copy of exe with the original arguments then
 // exits. The new process takes over; this one terminates cleanly.
-func restartSelf(exe string) {
+func restartSelf(exe, version string) {
+	setPendingUpdateVersion(version)
+
 	args := os.Args[1:]
 	cmd := exec.Command(exe, args...)
 	cmd.Stdin = os.Stdin
@@ -376,6 +395,7 @@ func restartSelf(exe string) {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		log.Printf("updater: restart failed: %v — please restart manually", err)
+		clearPendingUpdateVersion()
 		return
 	}
 	// Give the new process a moment to start before we exit.

@@ -22,35 +22,35 @@ const (
 	KeyNoDirectorySet          TranslationKey = "no_directory_set"
 
 	// Log messages
-	KeyLogReadError            TranslationKey = "log_read_error"
-	KeyLogConnectionRefused    TranslationKey = "log_connection_refused"
-	KeyLogUploadError          TranslationKey = "log_upload_error"
-	KeyLogInvalidAnalyzeResp   TranslationKey = "log_invalid_analyze_resp"
-	KeyLogEmptyResults         TranslationKey = "log_empty_results"
-	KeyLogServerError          TranslationKey = "log_server_error"
-	KeyLogInvalidUploadResp    TranslationKey = "log_invalid_upload_resp"
-	KeyLogServerRejected       TranslationKey = "log_server_rejected"
-	KeyLogUploaded             TranslationKey = "log_uploaded"
-	KeyLogWatcherInitError     TranslationKey = "log_watcher_init_error"
-	KeyLogWatchError           TranslationKey = "log_watch_error"
-	KeyLogWatcherError         TranslationKey = "log_watcher_error"
-	KeyLogWatching             TranslationKey = "log_watching"
-	KeyLogPasswordsReadError   TranslationKey = "log_passwords_read_error"
-	KeyLogPasswordsParseError  TranslationKey = "log_passwords_parse_error"
-
+	KeyLogReadError           TranslationKey = "log_read_error"
+	KeyLogConnectionRefused   TranslationKey = "log_connection_refused"
+	KeyLogUploadError         TranslationKey = "log_upload_error"
+	KeyLogInvalidAnalyzeResp  TranslationKey = "log_invalid_analyze_resp"
+	KeyLogEmptyResults        TranslationKey = "log_empty_results"
+	KeyLogServerError         TranslationKey = "log_server_error"
+	KeyLogInvalidUploadResp   TranslationKey = "log_invalid_upload_resp"
+	KeyLogServerRejected      TranslationKey = "log_server_rejected"
+	KeyLogUploaded            TranslationKey = "log_uploaded"
+	KeyLogWatcherInitError    TranslationKey = "log_watcher_init_error"
+	KeyLogWatchError          TranslationKey = "log_watch_error"
+	KeyLogWatcherError        TranslationKey = "log_watcher_error"
+	KeyLogWatching            TranslationKey = "log_watching"
+	KeyLogUpdated             TranslationKey = "log_updated"
+	KeyLogPasswordsReadError  TranslationKey = "log_passwords_read_error"
+	KeyLogPasswordsParseError TranslationKey = "log_passwords_parse_error"
 
 	// Startup
-	KeyStartupEnable          TranslationKey = "startup_enable"
-	KeyStartupDisable         TranslationKey = "startup_disable"
-	KeyStartupEnableConfirm   TranslationKey = "startup_enable_confirm"
-	KeyStartupDisableConfirm  TranslationKey = "startup_disable_confirm"
-	KeyStartupEnableTitle     TranslationKey = "startup_enable_title"
-	KeyStartupDisableTitle    TranslationKey = "startup_disable_title"
-	KeyStartupSuccess         TranslationKey = "startup_success"
-	KeyStartupRemoved         TranslationKey = "startup_removed"
-	KeyStartupError           TranslationKey = "startup_error"
-	KeyStartupWarnTitle       TranslationKey = "startup_warn_title"
-	KeyStartupWarnMsg         TranslationKey = "startup_warn_msg"
+	KeyStartupEnable         TranslationKey = "startup_enable"
+	KeyStartupDisable        TranslationKey = "startup_disable"
+	KeyStartupEnableConfirm  TranslationKey = "startup_enable_confirm"
+	KeyStartupDisableConfirm TranslationKey = "startup_disable_confirm"
+	KeyStartupEnableTitle    TranslationKey = "startup_enable_title"
+	KeyStartupDisableTitle   TranslationKey = "startup_disable_title"
+	KeyStartupSuccess        TranslationKey = "startup_success"
+	KeyStartupRemoved        TranslationKey = "startup_removed"
+	KeyStartupError          TranslationKey = "startup_error"
+	KeyStartupWarnTitle      TranslationKey = "startup_warn_title"
+	KeyStartupWarnMsg        TranslationKey = "startup_warn_msg"
 
 	// Tray
 	KeyTrayShow TranslationKey = "tray_show"
@@ -80,22 +80,23 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatchError:           "watch error: %v",
 		KeyLogWatcherError:         "watcher error: %v",
 		KeyLogWatching:             "watching BATTLE save files",
+		KeyLogUpdated:              "The application was updated to version: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: read error: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: parse error: %v",
 
-	KeyStartupEnable:           "Autostart: off",
-	KeyStartupDisable:          "Autostart: on",
-		KeyStartupEnableTitle:      "Enable startup",
-		KeyStartupDisableTitle:     "Disable startup",
-		KeyStartupEnableConfirm:    "Add H3SaveWatcher to system startup?\nIt will launch automatically when you log in.",
-		KeyStartupDisableConfirm:   "Remove H3SaveWatcher from system startup?",
-		KeyStartupSuccess:          "Added to system startup.",
-		KeyStartupRemoved:          "Removed from system startup.",
-		KeyStartupError:            "Startup registration failed: %v",
-		KeyStartupWarnTitle:        "Warning",
-		KeyStartupWarnMsg:          "The application is running from a temporary or build path:\n%s\n\nStartup entry may not work after moving the binary. Continue?",
-		KeyTrayShow:                "Show",
-		KeyTrayQuit:                "Quit",
+		KeyStartupEnable:         "Autostart: off",
+		KeyStartupDisable:        "Autostart: on",
+		KeyStartupEnableTitle:    "Enable startup",
+		KeyStartupDisableTitle:   "Disable startup",
+		KeyStartupEnableConfirm:  "Add H3SaveWatcher to system startup?\nIt will launch automatically when you log in.",
+		KeyStartupDisableConfirm: "Remove H3SaveWatcher from system startup?",
+		KeyStartupSuccess:        "Added to system startup.",
+		KeyStartupRemoved:        "Removed from system startup.",
+		KeyStartupError:          "Startup registration failed: %v",
+		KeyStartupWarnTitle:      "Warning",
+		KeyStartupWarnMsg:        "The application is running from a temporary or build path:\n%s\n\nStartup entry may not work after moving the binary. Continue?",
+		KeyTrayShow:              "Show",
+		KeyTrayQuit:              "Quit",
 	},
 	LangPL: {
 		KeyNoDirectorySelected:     "Nie wybrano katalogu",
@@ -119,22 +120,23 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatchError:           "błąd obserwowania: %v",
 		KeyLogWatcherError:         "błąd obserwatora: %v",
 		KeyLogWatching:             "obserwowanie plików zapisu BATTLE",
+		KeyLogUpdated:              "Aplikacja została zaktualizowana do wersji: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: błąd odczytu: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: błąd parsowania: %v",
 
-	KeyStartupEnable:           "Autostart: wył.",
-	KeyStartupDisable:          "Autostart: wł.",
-		KeyStartupEnableTitle:      "Włącz autostart",
-		KeyStartupDisableTitle:     "Wyłącz autostart",
-		KeyStartupEnableConfirm:    "Dodać H3SaveWatcher do autostartu?\nAplikacja będzie uruchamiana automatycznie po zalogowaniu.",
-		KeyStartupDisableConfirm:   "Usunąć H3SaveWatcher z autostartu?",
-		KeyStartupSuccess:          "Dodano do autostartu.",
-		KeyStartupRemoved:          "Usunięto z autostartu.",
-		KeyStartupError:            "Błąd rejestracji autostartu: %v",
-		KeyStartupWarnTitle:        "Uwaga",
-		KeyStartupWarnMsg:          "Aplikacja działa ze ścieżki tymczasowej lub buildowej:\n%s\n\nAutostart może nie działać po przeniesieniu pliku. Kontynuować?",
-		KeyTrayShow:                "Pokaż",
-		KeyTrayQuit:                "Zamknij",
+		KeyStartupEnable:         "Autostart: wył.",
+		KeyStartupDisable:        "Autostart: wł.",
+		KeyStartupEnableTitle:    "Włącz autostart",
+		KeyStartupDisableTitle:   "Wyłącz autostart",
+		KeyStartupEnableConfirm:  "Dodać H3SaveWatcher do autostartu?\nAplikacja będzie uruchamiana automatycznie po zalogowaniu.",
+		KeyStartupDisableConfirm: "Usunąć H3SaveWatcher z autostartu?",
+		KeyStartupSuccess:        "Dodano do autostartu.",
+		KeyStartupRemoved:        "Usunięto z autostartu.",
+		KeyStartupError:          "Błąd rejestracji autostartu: %v",
+		KeyStartupWarnTitle:      "Uwaga",
+		KeyStartupWarnMsg:        "Aplikacja działa ze ścieżki tymczasowej lub buildowej:\n%s\n\nAutostart może nie działać po przeniesieniu pliku. Kontynuować?",
+		KeyTrayShow:              "Pokaż",
+		KeyTrayQuit:              "Zamknij",
 	},
 	LangUA: {
 		KeyNoDirectorySelected:     "Каталог не вибрано",
@@ -158,22 +160,23 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatchError:           "помилка спостереження: %v",
 		KeyLogWatcherError:         "помилка спостерігача: %v",
 		KeyLogWatching:             "спостереження за файлами збереження BATTLE",
+		KeyLogUpdated:              "Програму оновлено до версії: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: помилка читання: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: помилка парсингу: %v",
 
-	KeyStartupEnable:           "Автозапуск: вимк.",
-	KeyStartupDisable:          "Автозапуск: увімк.",
-		KeyStartupEnableTitle:      "Увімкнути автозапуск",
-		KeyStartupDisableTitle:     "Вимкнути автозапуск",
-		KeyStartupEnableConfirm:    "Додати H3SaveWatcher до автозапуску?\nПрограма запускатиметься автоматично при вході.",
-		KeyStartupDisableConfirm:   "Видалити H3SaveWatcher з автозапуску?",
-		KeyStartupSuccess:          "Додано до автозапуску.",
-		KeyStartupRemoved:          "Видалено з автозапуску.",
-		KeyStartupError:            "Помилка реєстрації автозапуску: %v",
-		KeyStartupWarnTitle:        "Попередження",
-		KeyStartupWarnMsg:          "Програма запущена з тимчасового або збірного шляху:\n%s\n\nАвтозапуск може не працювати після переміщення файлу. Продовжити?",
-		KeyTrayShow:                "Показати",
-		KeyTrayQuit:                "Вийти",
+		KeyStartupEnable:         "Автозапуск: вимк.",
+		KeyStartupDisable:        "Автозапуск: увімк.",
+		KeyStartupEnableTitle:    "Увімкнути автозапуск",
+		KeyStartupDisableTitle:   "Вимкнути автозапуск",
+		KeyStartupEnableConfirm:  "Додати H3SaveWatcher до автозапуску?\nПрограма запускатиметься автоматично при вході.",
+		KeyStartupDisableConfirm: "Видалити H3SaveWatcher з автозапуску?",
+		KeyStartupSuccess:        "Додано до автозапуску.",
+		KeyStartupRemoved:        "Видалено з автозапуску.",
+		KeyStartupError:          "Помилка реєстрації автозапуску: %v",
+		KeyStartupWarnTitle:      "Попередження",
+		KeyStartupWarnMsg:        "Програма запущена з тимчасового або збірного шляху:\n%s\n\nАвтозапуск може не працювати після переміщення файлу. Продовжити?",
+		KeyTrayShow:              "Показати",
+		KeyTrayQuit:              "Вийти",
 	},
 	LangRU: {
 		KeyNoDirectorySelected:     "Каталог не выбран",
@@ -197,22 +200,23 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogWatchError:           "ошибка наблюдения: %v",
 		KeyLogWatcherError:         "ошибка наблюдателя: %v",
 		KeyLogWatching:             "наблюдение за файлами сохранения BATTLE",
+		KeyLogUpdated:              "Приложение обновлено до версии: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: ошибка чтения: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: ошибка разбора: %v",
 
-	KeyStartupEnable:           "Автозапуск: выкл.",
-	KeyStartupDisable:          "Автозапуск: вкл.",
-		KeyStartupEnableTitle:      "Включить автозапуск",
-		KeyStartupDisableTitle:     "Отключить автозапуск",
-		KeyStartupEnableConfirm:    "Добавить H3SaveWatcher в автозапуск?\nПриложение будет запускаться автоматически при входе.",
-		KeyStartupDisableConfirm:   "Удалить H3SaveWatcher из автозапуска?",
-		KeyStartupSuccess:          "Добавлено в автозапуск.",
-		KeyStartupRemoved:          "Удалено из автозапуска.",
-		KeyStartupError:            "Ошибка регистрации автозапуска: %v",
-		KeyStartupWarnTitle:        "Предупреждение",
-		KeyStartupWarnMsg:          "Приложение запущено из временного или сборочного пути:\n%s\n\nАвтозапуск может не работать после перемещения файла. Продолжить?",
-		KeyTrayShow:                "Показать",
-		KeyTrayQuit:                "Выйти",
+		KeyStartupEnable:         "Автозапуск: выкл.",
+		KeyStartupDisable:        "Автозапуск: вкл.",
+		KeyStartupEnableTitle:    "Включить автозапуск",
+		KeyStartupDisableTitle:   "Отключить автозапуск",
+		KeyStartupEnableConfirm:  "Добавить H3SaveWatcher в автозапуск?\nПриложение будет запускаться автоматически при входе.",
+		KeyStartupDisableConfirm: "Удалить H3SaveWatcher из автозапуска?",
+		KeyStartupSuccess:        "Добавлено в автозапуск.",
+		KeyStartupRemoved:        "Удалено из автозапуска.",
+		KeyStartupError:          "Ошибка регистрации автозапуска: %v",
+		KeyStartupWarnTitle:      "Предупреждение",
+		KeyStartupWarnMsg:        "Приложение запущено из временного или сборочного пути:\n%s\n\nАвтозапуск может не работать после перемещения файла. Продолжить?",
+		KeyTrayShow:              "Показать",
+		KeyTrayQuit:              "Выйти",
 	},
 }
 

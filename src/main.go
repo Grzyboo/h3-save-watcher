@@ -42,6 +42,7 @@ func main() {
 	go state.startUpdateChecker()
 
 	buildUI(state, w, fyneApp)
+	state.showUpdateNotification()
 	state.startLogPruner()
 
 	if cfg.WatchDir != "" {
