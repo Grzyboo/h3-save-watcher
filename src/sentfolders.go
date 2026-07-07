@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	cacheFile       = "h3savewatcher_cache.json"
-	maxSentFolders  = 20
+	cacheFile      = "h3savewatcher_cache.json"
+	maxSentFolders = 20
 )
 
 // SentFoldersCache persists the list of game folders and the files that have
@@ -34,8 +34,18 @@ func cachePath() string {
 	return filepath.Join(dir, cacheFile)
 }
 
+// tmpCachePath returns the path used for atomic cache writes.
+func tmpCachePath() string {
+	return cachePath() + ".tmp"
+}
+
 // loadSentFoldersCache reads the persisted cache or returns an empty one.
 func loadSentFoldersCache() SentFoldersCache {
+	// Clean up any leftover temporary file from an interrupted atomic write.
+	if err := os.Remove(tmpCachePath()); err != nil && !os.IsNotExist(err) {
+		log.Printf("failed to remove stale cache temp file: %v", err)
+	}
+
 	data, err := os.ReadFile(cachePath())
 	if err != nil {
 		return SentFoldersCache{}
@@ -48,13 +58,17 @@ func loadSentFoldersCache() SentFoldersCache {
 	return cache
 }
 
-// save writes the cache to disk.
+// save writes the cache to disk atomically (temp file + rename).
 func (c *SentFoldersCache) save() error {
 	data, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cachePath(), data, 0644)
+	tmp := tmpCachePath()
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, cachePath())
 }
 
 // moveToFront moves the folder at idx to the front of the list.
@@ -87,7 +101,7 @@ func (c *SentFoldersCache) ensureFolder(path string) {
 			return
 		}
 	}
-	c.Folders = append([]SentFolder{{Path: path}}, c.Folders...)
+	c.Folders = append([]SentFolder{{Path: path, Files: []string{}}}, c.Folders...)
 	if len(c.Folders) > maxSentFolders {
 		c.Folders = c.Folders[:maxSentFolders]
 	}

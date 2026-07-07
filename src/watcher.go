@@ -295,13 +295,6 @@ func (a *App) uploadExistingGameFolderFiles(folder string) {
 
 	absFolder, _ := filepath.Abs(folder)
 
-	a.sentFoldersMu.Lock()
-	a.sentFoldersCache.ensureFolder(absFolder)
-	if err := a.sentFoldersCache.save(); err != nil {
-		log.Printf("failed to save sent folders cache: %v", err)
-	}
-	a.sentFoldersMu.Unlock()
-
 	for _, entry := range entries {
 		if !entry.Type().IsRegular() {
 			continue

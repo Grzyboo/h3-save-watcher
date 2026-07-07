@@ -107,6 +107,11 @@ func (a *App) uploadFile(path string, fileType string) {
 	}
 	result := analyzeResult.Results[0]
 	if result.Error != "" {
+		if result.Error == "already_exists" {
+			a.markFileAsSent(path, filename)
+			log.Printf("upload %s: file already exists on server, cached as sent", filename)
+			return
+		}
 		a.addLog(false, KeyLogServerError, a.relPath(path), result.Error)
 		return
 	}
@@ -122,15 +127,21 @@ func (a *App) uploadFile(path string, fileType string) {
 	}
 
 	var uploadResult struct {
-		Ok   bool   `json:"ok"`
-		Path string `json:"path"`
-		UUID string `json:"uuid"`
+		Ok    bool   `json:"ok"`
+		Path  string `json:"path"`
+		UUID  string `json:"uuid"`
+		Error string `json:"error"`
 	}
 	if err := json.Unmarshal(uploadResp, &uploadResult); err != nil {
 		a.addLog(false, KeyLogInvalidUploadResp, a.relPath(path))
 		return
 	}
 	if !uploadResult.Ok {
+		if uploadResult.Error == "already_exists" {
+			a.markFileAsSent(path, filename)
+			log.Printf("upload %s: file already exists on server, cached as sent", filename)
+			return
+		}
 		a.addLog(false, KeyLogServerRejected, a.relPath(path))
 		return
 	}
@@ -148,6 +159,31 @@ func (a *App) uploadFile(path string, fileType string) {
 				log.Printf("failed to save sent folders cache: %v", err)
 			}
 		}
+	}
+	a.sentFoldersMu.Unlock()
+}
+
+// markFileAsSent records a file in the sent-folders cache if it belongs to the
+// currently watched game folder. This is used when the server reports that the
+// file already exists, so the app does not keep retrying the upload.
+func (a *App) markFileAsSent(path, filename string) {
+	a.mu.Lock()
+	folder := a.watchedGameFolder
+	a.mu.Unlock()
+	if folder == "" {
+		return
+	}
+
+	absPath, _ := filepath.Abs(path)
+	absFolder, _ := filepath.Abs(folder)
+	if absFolder == "" || !strings.HasPrefix(absPath, absFolder+string(os.PathSeparator)) {
+		return
+	}
+
+	a.sentFoldersMu.Lock()
+	a.sentFoldersCache.addFile(absFolder, filename)
+	if err := a.sentFoldersCache.save(); err != nil {
+		log.Printf("failed to save sent folders cache: %v", err)
 	}
 	a.sentFoldersMu.Unlock()
 }
