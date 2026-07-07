@@ -38,7 +38,7 @@ func main() {
 	state.uploadCond = sync.NewCond(&state.uploadMu)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
-	// Check for updates every 5 minutes in background — fails silently, app keeps running.
+	// Check for updates every hour in background — fails silently, app keeps running.
 	go state.startUpdateChecker()
 
 	buildUI(state, w, fyneApp)

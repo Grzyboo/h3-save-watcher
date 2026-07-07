@@ -20,7 +20,7 @@ import (
 const (
 	updateCheckTimeout  = 30 * time.Second
 	updateDownTimeout   = 5 * time.Minute
-	updateCheckInterval = 5 * time.Minute
+	updateCheckInterval = 1 * time.Hour
 	uploadWaitTimeout   = 60 * time.Second
 )
 
