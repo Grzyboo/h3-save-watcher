@@ -147,7 +147,7 @@ func (a *App) startWatcher(dir string) {
 					fname := filepath.Base(event.Name)
 					var ft string
 					switch {
-					case endTurnFile.MatchString(fname) && event.Op&fsnotify.Create != 0:
+					case endTurnFile.MatchString(fname) && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0:
 						ft = "TURN_END"
 					case fname == "GAME_BEGIN.GM2":
 						ft = "GAME_BEGIN"
