@@ -12,10 +12,11 @@ const configFile = "h3savewatcher.json"
 
 // Config holds persisted application state.
 type Config struct {
-	WatchDir         string `json:"watch_dir"`
-	Language         string `json:"language"`
-	InstanceID       string `json:"instance_id"`
-	UpdatedToVersion string `json:"updated_to_version,omitempty"`
+	WatchDir            string `json:"watch_dir"`
+	Language            string `json:"language"`
+	InstanceID          string `json:"instance_id"`
+	UpdatedToVersion    string `json:"updated_to_version,omitempty"`
+	InitialRunCompleted bool   `json:"initial_run_completed"`
 }
 
 // ensureInstanceID generates and persists a UUID v4 if one is not already set.

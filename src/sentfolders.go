@@ -23,6 +23,7 @@ type SentFoldersCache struct {
 type SentFolder struct {
 	Path  string   `json:"path"`
 	Files []string `json:"files"`
+	Info  string   `json:"info,omitempty"`
 }
 
 // cachePath returns the path to the cache file in the user's config directory.
@@ -133,4 +134,14 @@ func (c *SentFoldersCache) hasFile(path, filename string) bool {
 		return false
 	}
 	return false
+}
+
+// setInfo stores a free-form debug marker on the given folder.
+func (c *SentFoldersCache) setInfo(path, info string) {
+	for i, f := range c.Folders {
+		if f.Path == path {
+			c.Folders[i].Info = info
+			return
+		}
+	}
 }

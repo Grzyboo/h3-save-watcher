@@ -41,6 +41,10 @@ type App struct {
 	sentFoldersCache SentFoldersCache
 	sentFoldersMu    sync.Mutex
 
+	// True on the very first program run; existing folder contents are marked
+	// as sent without uploading, so the user is not flooded with old saves.
+	isInitialRun bool
+
 	// Active upload tracking (used to wait for uploads before auto-restart).
 	uploadMu    sync.Mutex
 	uploadCond  *sync.Cond

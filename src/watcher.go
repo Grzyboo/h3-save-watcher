@@ -295,6 +295,7 @@ func (a *App) uploadExistingGameFolderFiles(folder string) {
 
 	absFolder, _ := filepath.Abs(folder)
 
+	var initialFiles []string
 	for _, entry := range entries {
 		if !entry.Type().IsRegular() {
 			continue
@@ -307,16 +308,38 @@ func (a *App) uploadExistingGameFolderFiles(folder string) {
 		case fname == "GAME_BEGIN.GM2":
 			ft = "GAME_BEGIN"
 		}
-		if ft != "" {
-			a.sentFoldersMu.Lock()
-			alreadySent := a.sentFoldersCache.hasFile(absFolder, fname)
-			a.sentFoldersMu.Unlock()
-			if alreadySent {
-				log.Printf("skipping already sent file: %s", fname)
-				continue
-			}
-			a.uploadFile(filepath.Join(folder, fname), ft)
+		if ft == "" {
+			continue
 		}
+
+		a.sentFoldersMu.Lock()
+		alreadySent := a.sentFoldersCache.hasFile(absFolder, fname)
+		if !alreadySent {
+			a.sentFoldersCache.addFile(absFolder, fname)
+			if a.isInitialRun {
+				initialFiles = append(initialFiles, fname)
+			}
+		}
+		a.sentFoldersMu.Unlock()
+
+		if alreadySent {
+			log.Printf("skipping already sent file: %s", fname)
+			continue
+		}
+		if a.isInitialRun {
+			log.Printf("initial run: marking file as sent without uploading: %s", fname)
+			continue
+		}
+		a.uploadFile(filepath.Join(folder, fname), ft)
+	}
+
+	if a.isInitialRun && len(initialFiles) > 0 {
+		a.sentFoldersMu.Lock()
+		a.sentFoldersCache.setInfo(absFolder, fmt.Sprintf("Initial run, didn't send files: %s", strings.Join(initialFiles, ", ")))
+		if err := a.sentFoldersCache.save(); err != nil {
+			log.Printf("failed to save sent folders cache: %v", err)
+		}
+		a.sentFoldersMu.Unlock()
 	}
 }
 

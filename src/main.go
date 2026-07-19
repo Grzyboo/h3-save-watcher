@@ -29,12 +29,17 @@ func main() {
 
 	cfg := loadConfig()
 	ensureInstanceID(&cfg)
+	isInitialRun := !cfg.InitialRunCompleted
+	if isInitialRun {
+		cfg.InitialRunCompleted = true
+		saveConfig(cfg)
+	}
 	startLang := Lang(cfg.Language)
 	if startLang == "" {
 		startLang = LangEN
 	}
 
-	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache()}
+	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache(), isInitialRun: isInitialRun}
 	state.uploadCond = sync.NewCond(&state.uploadMu)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
