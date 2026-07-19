@@ -63,6 +63,7 @@ func (a *App) uploadFile(path string, fileType string) {
 		"X-PlayerName":   info.PlayerName,
 		"X-OpponentName": info.OpponentName,
 		"X-GamePassword": info.Password,
+		"X-AppVersion":   appVersion,
 	}
 
 	header := data
