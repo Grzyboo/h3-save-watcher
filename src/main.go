@@ -28,8 +28,14 @@ func main() {
 	log.Println("fyne app created")
 
 	cfg := loadConfig()
+	// If the config file already existed before this launch, treat it as an
+	// existing installation even if the InitialRunCompleted flag is missing
+	// (e.g. upgrade from an older version).
+	_, configExistedErr := os.Stat(configPath())
+	configExisted := configExistedErr == nil
 	ensureInstanceID(&cfg)
-	isInitialRun := !cfg.InitialRunCompleted
+
+	isInitialRun := !cfg.InitialRunCompleted && !configExisted
 	if isInitialRun {
 		cfg.InitialRunCompleted = true
 		saveConfig(cfg)

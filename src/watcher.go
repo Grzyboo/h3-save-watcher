@@ -287,6 +287,9 @@ func (a *App) switchGameFolder(folder string) {
 }
 
 func (a *App) uploadExistingGameFolderFiles(folder string) {
+	// Unset initial run to send all the future files normally
+	defer func() { a.isInitialRun = false }()
+
 	entries, err := os.ReadDir(folder)
 	if err != nil {
 		a.addLog(false, KeyLogReadError, folder, err)
