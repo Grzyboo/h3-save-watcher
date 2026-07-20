@@ -8,18 +8,19 @@ import (
 )
 
 func main() {
-	// Debug log file — written next to the executable.
-	if exePath, err := os.Executable(); err == nil {
-		logPath := filepath.Join(filepath.Dir(exePath), "h3savewatcher.log")
-		if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
-			log.SetOutput(f)
-			log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-			defer f.Close()
-		}
+	_ = ensureAppDir()
+
+	// Debug log file — written to the dedicated application directory.
+	logPath := filepath.Join(ensureAppDir(), "h3savewatcher.log")
+	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+		log.SetOutput(f)
+		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+		defer f.Close()
 	}
 	log.Println("startup args:", os.Args)
 
 	cleanOldBinary()
+	migrateLegacyConfigAndCache()
 
 	startInTray := len(os.Args) > 1 && os.Args[1] == "--tray"
 	log.Println("startInTray:", startInTray)

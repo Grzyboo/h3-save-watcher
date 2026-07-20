@@ -6,9 +6,69 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const configFile = "h3savewatcher.json"
+
+var (
+	appDirOnce sync.Once
+	appDir     string
+)
+
+// userConfigDir returns the user's config directory, falling back to the
+// current working directory if it cannot be determined.
+func userConfigDir() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = "."
+	}
+	return dir
+}
+
+// ensureAppDir returns the dedicated h3savewatcher directory. It is created
+// inside the user's config directory if possible; if creation fails, the
+// function falls back to the user config directory itself.
+func ensureAppDir() string {
+	appDirOnce.Do(func() {
+		base := userConfigDir()
+		candidate := filepath.Join(base, "h3savewatcher")
+		if err := os.MkdirAll(candidate, 0755); err == nil {
+			appDir = candidate
+		} else {
+			appDir = base
+		}
+	})
+	return appDir
+}
+
+// legacyConfigPath returns the old config path directly in the user's config
+// directory, used for one-time migration.
+func legacyConfigPath() string {
+	return filepath.Join(userConfigDir(), configFile)
+}
+
+// migrateLegacyConfigAndCache moves config and cache files from the old
+// location (directly in the user's config directory) into the dedicated
+// h3savewatcher directory. If a file already exists at the new location, the
+// old file is left untouched so existing data is never overwritten.
+func migrateLegacyConfigAndCache() {
+	newConfig := configPath()
+	newCache := cachePath()
+	oldConfig := legacyConfigPath()
+	oldCache := legacyCachePath()
+
+	if _, err := os.Stat(newConfig); os.IsNotExist(err) {
+		if _, err := os.Stat(oldConfig); err == nil {
+			_ = os.Rename(oldConfig, newConfig)
+		}
+	}
+	if _, err := os.Stat(newCache); os.IsNotExist(err) {
+		if _, err := os.Stat(oldCache); err == nil {
+			_ = os.Rename(oldCache, newCache)
+		}
+	}
+}
 
 // Config holds persisted application state.
 type Config struct {
@@ -35,11 +95,7 @@ func ensureInstanceID(cfg *Config) {
 }
 
 func configPath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = "."
-	}
-	return filepath.Join(dir, configFile)
+	return filepath.Join(ensureAppDir(), configFile)
 }
 
 func loadConfig() Config {

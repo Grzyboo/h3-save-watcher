@@ -26,13 +26,14 @@ type SentFolder struct {
 	Info  string   `json:"info,omitempty"`
 }
 
-// cachePath returns the path to the cache file in the user's config directory.
+// legacyCachePath returns the old cache path directly in the user's config
+// directory, used for one-time migration.
+func legacyCachePath() string {
+	return filepath.Join(userConfigDir(), cacheFile)
+}
+
 func cachePath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = "."
-	}
-	return filepath.Join(dir, cacheFile)
+	return filepath.Join(ensureAppDir(), cacheFile)
 }
 
 // tmpCachePath returns the path used for atomic cache writes.
