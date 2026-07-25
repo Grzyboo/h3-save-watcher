@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Build script for H3SaveWatcher
+# Build script for Ajit
 # Reads secrets and config from .env (never committed).
 # Generates src/buildvars.go with all build-time values, then compiles.
 #
@@ -80,7 +80,7 @@ if [ -n "${RELEASE:-}" ]; then
   cp fyne-cross/bin/linux-amd64/src                 build/h3savewatcher-linux-amd64
   cp fyne-cross/bin/darwin-amd64/src                build/h3savewatcher-darwin-amd64
   cp fyne-cross/bin/darwin-arm64/src                build/h3savewatcher-darwin-arm64
-  cp fyne-cross/bin/windows-amd64/H3SaveWatcher.exe build/h3savewatcher-windows-amd64.exe
+  cp fyne-cross/bin/windows-amd64/Ajit.exe build/h3savewatcher-windows-amd64.exe
 
   echo "Generating checksums..."
   ( cd build && sha256sum \

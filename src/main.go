@@ -25,7 +25,7 @@ func main() {
 	startInTray := len(os.Args) > 1 && os.Args[1] == "--tray"
 	log.Println("startInTray:", startInTray)
 
-	fyneApp, w := newFyneApp("H3SaveWatcher")
+	fyneApp, w := newFyneApp("Ajit")
 	log.Println("fyne app created")
 
 	cfg := loadConfig()

@@ -74,7 +74,7 @@ func setupTray(state *App, w fyne.Window, fyneApp fyne.App) {
 	if desk, ok := fyneApp.(desktop.App); ok {
 		trayIcon := fyne.NewStaticResource("tray", appIcon)
 		desk.SetSystemTrayIcon(trayIcon)
-		desk.SetSystemTrayMenu(fyne.NewMenu("H3SaveWatcher",
+		desk.SetSystemTrayMenu(fyne.NewMenu("Ajit",
 			fyne.NewMenuItem(state.T(KeyTrayShow), func() {
 				log.Println("tray show clicked")
 				fyne.Do(func() {

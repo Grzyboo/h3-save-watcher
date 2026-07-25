@@ -249,7 +249,7 @@ func fetchLatestRelease(repo string) (*githubRelease, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "H3SaveWatcher/"+appVersion)
+	req.Header.Set("User-Agent", "Ajit/"+appVersion)
 
 	resp, err := client.Do(req)
 	if err != nil {

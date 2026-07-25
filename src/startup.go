@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const appName = "H3SaveWatcher"
+const appName = "Ajit"
 
 // isSuspiciousPath returns true if the binary appears to be in a temp or build path.
 func isSuspiciousPath(exePath string) bool {
