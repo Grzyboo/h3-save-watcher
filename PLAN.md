@@ -143,7 +143,7 @@ files instead of calling upload directly — one code path for all uploads.
 Each step ends with a green `./build.sh`. Steps are independent enough to
 stop after any of them and resume later — tick the checkbox when done.
 
-- [ ] **Step 1: Bus skeleton.**
+- [x] **Step 1: Bus skeleton.**
   Add `events.go` (interface + event structs) and `bus.go`
   (`Subscribe`/`Publish`/`Run`). Instantiate and start the bus in `main.go`.
   No behavior change yet. Verify: `./build.sh`.

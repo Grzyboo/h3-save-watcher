@@ -46,6 +46,10 @@ func main() {
 		startLang = LangEN
 	}
 
+	bus := NewBus()
+	go bus.Run()
+	defer bus.Stop()
+
 	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache(), isInitialRun: isInitialRun}
 	state.uploadCond = sync.NewCond(&state.uploadMu)
 	log.Printf("instance ID: %s", cfg.InstanceID)
