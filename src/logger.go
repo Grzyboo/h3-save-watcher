@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	logMaxAge       = 24 * time.Hour
+	logMaxAge        = 24 * time.Hour
 	logPruneInterval = time.Hour
 )
 

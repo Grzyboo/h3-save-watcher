@@ -81,5 +81,3 @@ func parsePasswordsTxt(data []byte) (GameInfo, error) {
 	log.Printf("passwords.txt parsed: host=%v player=%q opponent=%q", info.IsHost, info.PlayerName, info.OpponentName)
 	return info, nil
 }
-
-

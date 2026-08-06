@@ -55,7 +55,7 @@ type PasswordsLoaded struct {
 type PasswordsFailureKind int
 
 const (
-	PasswordsReadFailed  PasswordsFailureKind = iota
+	PasswordsReadFailed PasswordsFailureKind = iota
 	PasswordsParseFailed
 )
 

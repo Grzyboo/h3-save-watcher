@@ -47,7 +47,6 @@ func registerPasswordsHandlers(bus *Bus, a *App) {
 		}
 
 		bus.Publish(PasswordsLoaded{Info: info, Changed: changed})
-		a.scheduleGameFolderWatch()
 	}
 
 	Subscribe(bus, func(e PasswordsCreated) { handle(e.Path) })

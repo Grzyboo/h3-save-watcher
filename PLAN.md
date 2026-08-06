@@ -161,7 +161,7 @@ stop after any of them and resume later — tick the checkbox when done.
   existing `uploadFile`. `uploadExistingGameFolderFiles` publishes events for
   unsent files instead of uploading directly. Verify: `./build.sh`.
 
-- [ ] **Step 4: Games dir + game folder.**
+- [x] **Step 4: Games dir + game folder.**
   `GamesDirAppeared`/`GamesDirRemoved`, `GameFolderResolveRequested`/
   `Resolved`/`NotFound` events; new `handler_gamefolder.go` takes over
   `scheduleGameFolderWatch`, `resolveAndWatchGameFolder`, `switchGameFolder`,
