@@ -50,8 +50,11 @@ func main() {
 	go bus.Run()
 	defer bus.Stop()
 
-	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache(), isInitialRun: isInitialRun}
+	state := &App{bus: bus, window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache(), isInitialRun: isInitialRun}
 	state.uploadCond = sync.NewCond(&state.uploadMu)
+
+	registerPasswordsHandlers(bus, state)
+	registerLogHandlers(bus, state)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
 	// Check for updates every hour in background — fails silently, app keeps running.

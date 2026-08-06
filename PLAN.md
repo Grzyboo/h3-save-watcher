@@ -148,7 +148,7 @@ stop after any of them and resume later — tick the checkbox when done.
   (`Subscribe`/`Publish`/`Run`). Instantiate and start the bus in `main.go`.
   No behavior change yet. Verify: `./build.sh`.
 
-- [ ] **Step 2: Passwords pipeline.**
+- [x] **Step 2: Passwords pipeline.**
   Watcher publishes `PasswordsCreated`/`PasswordsModified` (post-debounce)
   instead of calling `loadPasswordsFile`. New `handler_passwords.go` parses,
   updates `gameInfo`, publishes `PasswordsLoaded`/`PasswordsInvalid` and (for

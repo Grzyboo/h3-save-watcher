@@ -90,19 +90,13 @@ func (a *App) startWatcher(dir string) {
 		absToType[abs] = wf.fileType
 	}
 
-	a.loadPasswordsFile(dir)
-
-	a.mu.Lock()
-	hasGameInfo := a.gameInfo.OpponentName != ""
-	a.mu.Unlock()
-	if hasGameInfo {
-		a.addLog(true, KeyLogWatching)
-	} else {
-		a.addLog(true, KeyLogWatchingWaiting)
-	}
-
 	absPasswords, _ := filepath.Abs(filepath.Join(dir, "Games", "passwords.txt"))
 	absGames, _ := filepath.Abs(gamesDir)
+
+	// Initial passwords.txt load (handled like a create event), then the
+	// watcher-started fact; the bus processes them in publish order.
+	a.bus.Publish(PasswordsCreated{Path: absPasswords})
+	a.bus.Publish(WatchStarted{Dir: dir})
 
 	go func() {
 		type pending struct {
@@ -112,6 +106,7 @@ func (a *App) startWatcher(dir string) {
 		}
 		debounce := make(map[string]*pending)
 		var passwordsTimer *time.Timer
+		passwordsCreated := false
 		var dmu sync.Mutex
 
 		for {
@@ -125,29 +120,37 @@ func (a *App) startWatcher(dir string) {
 				if absEvent == absGames {
 					// The Games folder itself was created (or removed) while
 					// watching the root dir — pick it up without a restart.
-					if event.Op&fsnotify.Create != 0 {
-						a.watchGamesDir(watcher, gamesDir, dir)
-					} else if event.Op&fsnotify.Remove != 0 {
+				if event.Op&fsnotify.Create != 0 {
+					a.watchGamesDir(watcher, gamesDir)
+				} else if event.Op&fsnotify.Remove != 0 {
 						a.unwatchGamesDir(watcher, gamesDir)
 					}
 					continue
 				}
 
-				if absEvent == absPasswords && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
-					dmu.Lock()
-					if passwordsTimer != nil {
-						passwordsTimer.Reset(watchedFilesDebounce)
-					} else {
-						passwordsTimer = time.AfterFunc(watchedFilesDebounce, func() {
-							dmu.Lock()
-							passwordsTimer = nil
-							dmu.Unlock()
-							a.loadPasswordsFile(dir)
-						})
-					}
-					dmu.Unlock()
-					continue
+			if absEvent == absPasswords && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+				created := event.Op&fsnotify.Create != 0
+				dmu.Lock()
+				passwordsCreated = passwordsCreated || created
+				if passwordsTimer != nil {
+					passwordsTimer.Reset(watchedFilesDebounce)
+				} else {
+					passwordsTimer = time.AfterFunc(watchedFilesDebounce, func() {
+						dmu.Lock()
+						passwordsTimer = nil
+						created := passwordsCreated
+						passwordsCreated = false
+						dmu.Unlock()
+						if created {
+							a.bus.Publish(PasswordsCreated{Path: absPasswords})
+						} else {
+							a.bus.Publish(PasswordsModified{Path: absPasswords})
+						}
+					})
 				}
+				dmu.Unlock()
+				continue
+			}
 
 				if fileType, matched := absToType[absEvent]; matched && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
 					dmu.Lock()
@@ -209,9 +212,9 @@ func (a *App) startWatcher(dir string) {
 
 // watchGamesDir adds <root>/Games to the fsnotify watcher after the folder
 // appears (it may not have existed when the watcher was started). If
-// passwords.txt is already there, it is loaded right away; otherwise its
-// Create event will trigger a load via the regular event branch.
-func (a *App) watchGamesDir(watcher *fsnotify.Watcher, gamesDir, root string) {
+// passwords.txt is already there, a load is triggered right away; otherwise
+// its Create event will trigger a load via the regular event branch.
+func (a *App) watchGamesDir(watcher *fsnotify.Watcher, gamesDir string) {
 	a.mu.Lock()
 	already := a.gamesDirWatched
 	a.mu.Unlock()
@@ -230,7 +233,7 @@ func (a *App) watchGamesDir(watcher *fsnotify.Watcher, gamesDir, root string) {
 	log.Printf("Games folder detected, watching: %s", gamesDir)
 
 	if _, err := os.Stat(filepath.Join(gamesDir, "passwords.txt")); err == nil {
-		a.loadPasswordsFile(root)
+		a.bus.Publish(PasswordsCreated{Path: filepath.Join(gamesDir, "passwords.txt")})
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 // App holds all application state.
 type App struct {
 	mu               sync.Mutex
+	bus              *Bus
 	lang             Lang
 	firstRun         bool
 	watchDir         string
