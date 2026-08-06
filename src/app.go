@@ -37,6 +37,11 @@ type App struct {
 	gameFolderCancel   context.CancelFunc
 	gameFolderDebounce *time.Timer
 
+	// True while the fsnotify watcher has an active watch on <root>/Games.
+	// The root dir is always watched so that a later-created (or deleted and
+	// re-created) Games folder can be picked up without restarting the app.
+	gamesDirWatched bool
+
 	// Persisted list of files already sent from each game folder.
 	sentFoldersCache SentFoldersCache
 	sentFoldersMu    sync.Mutex

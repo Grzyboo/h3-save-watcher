@@ -47,6 +47,7 @@ func (a *App) startWatcher(dir string) {
 		a.gameFolderDebounce = nil
 	}
 	a.watchedGameFolder = ""
+	a.gamesDirWatched = false
 	a.watchDir = dir
 	a.mu.Unlock()
 
@@ -60,20 +61,27 @@ func (a *App) startWatcher(dir string) {
 		return
 	}
 
-	gamesDir := filepath.Join(dir, "Games")
-	watchTarget := gamesDir
-	if _, err := os.Stat(gamesDir); os.IsNotExist(err) {
-		watchTarget = dir
-	}
-
-	if err := watcher.Add(watchTarget); err != nil {
+	// Always watch the root dir: its events let us detect the Games folder
+	// being created (or deleted and re-created) while the app is running.
+	if err := watcher.Add(dir); err != nil {
 		a.addLog(false, KeyLogWatchError, err)
 		watcher.Close()
 		return
 	}
 
+	gamesDir := filepath.Join(dir, "Games")
+	gamesDirWatched := false
+	if _, err := os.Stat(gamesDir); err == nil {
+		if err := watcher.Add(gamesDir); err != nil {
+			a.addLog(false, KeyLogWatchError, err)
+		} else {
+			gamesDirWatched = true
+		}
+	}
+
 	a.mu.Lock()
 	a.watcher = watcher
+	a.gamesDirWatched = gamesDirWatched
 	a.mu.Unlock()
 
 	absToType := make(map[string]string, len(watchedFiles))
@@ -87,6 +95,7 @@ func (a *App) startWatcher(dir string) {
 	a.addLog(true, KeyLogWatching)
 
 	absPasswords, _ := filepath.Abs(filepath.Join(dir, "Games", "passwords.txt"))
+	absGames, _ := filepath.Abs(gamesDir)
 
 	go func() {
 		type pending struct {
@@ -105,6 +114,17 @@ func (a *App) startWatcher(dir string) {
 					return
 				}
 				absEvent, _ := filepath.Abs(event.Name)
+
+				if absEvent == absGames {
+					// The Games folder itself was created (or removed) while
+					// watching the root dir — pick it up without a restart.
+					if event.Op&fsnotify.Create != 0 {
+						a.watchGamesDir(watcher, gamesDir, dir)
+					} else if event.Op&fsnotify.Remove != 0 {
+						a.unwatchGamesDir(watcher, gamesDir)
+					}
+					continue
+				}
 
 				if absEvent == absPasswords && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
 					dmu.Lock()
@@ -178,6 +198,43 @@ func (a *App) startWatcher(dir string) {
 			}
 		}
 	}()
+}
+
+// watchGamesDir adds <root>/Games to the fsnotify watcher after the folder
+// appears (it may not have existed when the watcher was started). If
+// passwords.txt is already there, it is loaded right away; otherwise its
+// Create event will trigger a load via the regular event branch.
+func (a *App) watchGamesDir(watcher *fsnotify.Watcher, gamesDir, root string) {
+	a.mu.Lock()
+	already := a.gamesDirWatched
+	a.mu.Unlock()
+	if already {
+		return
+	}
+
+	if err := watcher.Add(gamesDir); err != nil {
+		a.addLog(false, KeyLogWatchError, err)
+		return
+	}
+
+	a.mu.Lock()
+	a.gamesDirWatched = true
+	a.mu.Unlock()
+	log.Printf("Games folder detected, watching: %s", gamesDir)
+
+	if _, err := os.Stat(filepath.Join(gamesDir, "passwords.txt")); err == nil {
+		a.loadPasswordsFile(root)
+	}
+}
+
+// unwatchGamesDir drops the watch on <root>/Games after the folder was
+// removed, so that a later re-creation triggers watchGamesDir again.
+func (a *App) unwatchGamesDir(watcher *fsnotify.Watcher, gamesDir string) {
+	a.mu.Lock()
+	a.gamesDirWatched = false
+	a.mu.Unlock()
+	_ = watcher.Remove(gamesDir) // the watch may already be gone — ignore
+	log.Printf("Games folder removed, will re-watch on re-creation: %s", gamesDir)
 }
 
 // scheduleGameFolderWatch schedules a game folder resolution attempt after
