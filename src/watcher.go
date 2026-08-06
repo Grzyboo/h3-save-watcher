@@ -92,7 +92,14 @@ func (a *App) startWatcher(dir string) {
 
 	a.loadPasswordsFile(dir)
 
-	a.addLog(true, KeyLogWatching)
+	a.mu.Lock()
+	hasGameInfo := a.gameInfo.OpponentName != ""
+	a.mu.Unlock()
+	if hasGameInfo {
+		a.addLog(true, KeyLogWatching)
+	} else {
+		a.addLog(true, KeyLogWatchingWaiting)
+	}
 
 	absPasswords, _ := filepath.Abs(filepath.Join(dir, "Games", "passwords.txt"))
 	absGames, _ := filepath.Abs(gamesDir)

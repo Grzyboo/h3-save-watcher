@@ -113,8 +113,15 @@ func (a *App) loadPasswordsFile(dir string) {
 	}
 
 	a.mu.Lock()
+	changed := a.gameInfo.PlayerName != info.PlayerName ||
+		a.gameInfo.OpponentName != info.OpponentName ||
+		a.gameInfo.Password != info.Password
 	a.gameInfo = info
 	a.mu.Unlock()
+
+	if changed {
+		a.addLog(true, KeyLogPasswordsLoaded, info.PlayerName, info.OpponentName)
+	}
 
 	a.scheduleGameFolderWatch()
 }

@@ -38,6 +38,8 @@ const (
 	KeyLogUpdated             TranslationKey = "log_updated"
 	KeyLogPasswordsReadError  TranslationKey = "log_passwords_read_error"
 	KeyLogPasswordsParseError TranslationKey = "log_passwords_parse_error"
+	KeyLogPasswordsLoaded     TranslationKey = "log_passwords_loaded"
+	KeyLogWatchingWaiting     TranslationKey = "log_watching_waiting"
 
 	// Startup
 	KeyStartupEnable         TranslationKey = "startup_enable"
@@ -83,6 +85,8 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:              "The application was updated to version: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: read error: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: parse error: %v",
+		KeyLogPasswordsLoaded:      "passwords.txt: game detected: %s vs %s",
+		KeyLogWatchingWaiting:      "watching files - waiting for passwords.txt (start or join a game)",
 
 		KeyStartupEnable:         "Autostart: off",
 		KeyStartupDisable:        "Autostart: on",
@@ -123,6 +127,8 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:              "Aplikacja została zaktualizowana do wersji: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: błąd odczytu: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: błąd parsowania: %v",
+		KeyLogPasswordsLoaded:      "passwords.txt: wykryto grę: %s vs %s",
+		KeyLogWatchingWaiting:      "obserwowanie plików - oczekiwanie na passwords.txt (rozpocznij lub dołącz do gry)",
 
 		KeyStartupEnable:         "Autostart: wył.",
 		KeyStartupDisable:        "Autostart: wł.",
@@ -163,6 +169,8 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:              "Програму оновлено до версії: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: помилка читання: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: помилка парсингу: %v",
+		KeyLogPasswordsLoaded:      "passwords.txt: виявлено гру: %s vs %s",
+		KeyLogWatchingWaiting:      "спостереження за файлами - очікування на passwords.txt (почніть або приєднайтесь до гри)",
 
 		KeyStartupEnable:         "Автозапуск: вимк.",
 		KeyStartupDisable:        "Автозапуск: увімк.",
@@ -203,6 +211,8 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:              "Приложение обновлено до версии: %s",
 		KeyLogPasswordsReadError:   "passwords.txt: ошибка чтения: %v",
 		KeyLogPasswordsParseError:  "passwords.txt: ошибка разбора: %v",
+		KeyLogPasswordsLoaded:      "passwords.txt: обнаружена игра: %s vs %s",
+		KeyLogWatchingWaiting:      "наблюдение за файлами - ожидание passwords.txt (начните или присоединитесь к игре)",
 
 		KeyStartupEnable:         "Автозапуск: выкл.",
 		KeyStartupDisable:        "Автозапуск: вкл.",

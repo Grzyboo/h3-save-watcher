@@ -59,6 +59,10 @@ func main() {
 
 	if cfg.WatchDir != "" {
 		if root, err := resolveH3Root(cfg.WatchDir); err == nil {
+			if root != cfg.WatchDir {
+				cfg.WatchDir = root
+				saveConfig(cfg)
+			}
 			state.dirLabel.SetText(root)
 			state.startWatcher(root)
 		}
