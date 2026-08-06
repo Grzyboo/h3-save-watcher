@@ -24,7 +24,7 @@ func buildUI(state *App, w fyne.Window, fyneApp fyne.App) {
 			if err != nil || uri == nil {
 				return
 			}
-			state.setWatchDir(uri.Path())
+			state.bus.Publish(WatchDirChangeRequested{Dir: uri.Path()})
 		}, w)
 		d.Resize(fyne.NewSize(800, 600))
 		d.Show()
@@ -58,7 +58,7 @@ func buildUI(state *App, w fyne.Window, fyneApp fyne.App) {
 		startupBtnLabel = state.T(KeyStartupDisable)
 	}
 	state.startupBtn = widget.NewButton(startupBtnLabel, func() {
-		state.handleStartupToggle()
+		state.bus.Publish(StartupToggleRequested{})
 	})
 	state.startupBtn.Importance = widget.LowImportance
 
@@ -97,7 +97,7 @@ func setupTray(state *App, w fyne.Window, fyneApp fyne.App) {
 func makeFlagButton(imgData []byte, lang Lang, state *App) *widget.Button {
 	res := fyne.NewStaticResource("flag", imgData)
 	btn := widget.NewButtonWithIcon("", res, func() {
-		state.setLang(lang)
+		state.bus.Publish(LanguageChanged{Lang: lang})
 	})
 	btn.Importance = widget.LowImportance
 	return btn
@@ -112,7 +112,7 @@ func runAutoDiscovery(state *App, w fyne.Window) {
 				fmt.Sprintf(state.T(KeyInstallationFoundMsg), found),
 				func(ok bool) {
 					if ok {
-						state.setWatchDir(found)
+						state.bus.Publish(WatchDirChangeRequested{Dir: found})
 					}
 				},
 				w,

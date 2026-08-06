@@ -168,7 +168,7 @@ stop after any of them and resume later — tick the checkbox when done.
   initial scan. Watcher's Games-folder create/remove branch only publishes.
   Verify: `./build.sh`.
 
-- [ ] **Step 5: UI intents.**
+- [x] **Step 5: UI intents.**
   Browse dialog + auto-discovery publish `WatchDirChangeRequested`; flag
   buttons publish `LanguageChanged`; startup button publishes
   `StartupToggleRequested`. New `handler_watchdir.go`, `handler_language.go`,

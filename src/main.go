@@ -56,6 +56,9 @@ func main() {
 	registerPasswordsHandlers(bus, state)
 	registerUploadHandlers(bus, state)
 	registerGameFolderHandlers(bus, state)
+	registerWatchDirHandlers(bus, state)
+	registerLanguageHandlers(bus, state)
+	registerStartupHandlers(bus, state)
 	registerLogHandlers(bus, state)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
