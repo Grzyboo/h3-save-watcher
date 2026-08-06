@@ -154,7 +154,7 @@ stop after any of them and resume later — tick the checkbox when done.
   updates `gameInfo`, publishes `PasswordsLoaded`/`PasswordsInvalid` and (for
   now) keeps the existing log calls. Verify: `./build.sh`.
 
-- [ ] **Step 3: Save-file uploads.**
+- [x] **Step 3: Save-file uploads.**
   Watcher publishes the 5 `...SaveDetected` events (incl. turn number for
   `TurnEndSaveDetected`) instead of calling `uploadFile`. New
   `handler_uploads.go` subscribes all 5 to one upload handler that wraps the

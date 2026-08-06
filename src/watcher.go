@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,30 @@ var watchedFiles = []struct {
 	{"Games/BATTLE.GM2", "BATTLE"},
 	{"Games/BATTLE_non_continuable.GM2", "BATTLE_NC"},
 	{"Games/TURN_BEGIN.GM2", "TURN_BEGIN"},
+}
+
+// saveDetectedEvent maps a debounced save-file write to its domain event.
+func saveDetectedEvent(path, fileType string) Event {
+	switch fileType {
+	case "BATTLE":
+		return BattleSaveDetected{Path: path}
+	case "BATTLE_NC":
+		return BattleNonContinuableSaveDetected{Path: path}
+	case "TURN_BEGIN":
+		return TurnBeginSaveDetected{Path: path}
+	case "GAME_BEGIN":
+		return GameBeginSaveDetected{Path: path}
+	case "TURN_END":
+		return TurnEndSaveDetected{Path: path, Turn: turnNumber(path)}
+	}
+	return nil
+}
+
+// turnNumber extracts the turn number from a save filename like "12.GM2".
+func turnNumber(path string) int {
+	base := filepath.Base(path)
+	n, _ := strconv.Atoi(strings.TrimSuffix(base, ".GM2"))
+	return n
 }
 
 func (a *App) startWatcher(dir string) {
@@ -162,7 +187,7 @@ func (a *App) startWatcher(dir string) {
 							dmu.Lock()
 							delete(debounce, absEvent)
 							dmu.Unlock()
-							a.uploadFile(p.path, p.fileType)
+							a.bus.Publish(saveDetectedEvent(p.path, p.fileType))
 						})
 						debounce[absEvent] = p
 					}
@@ -192,7 +217,7 @@ func (a *App) startWatcher(dir string) {
 								dmu.Lock()
 								delete(debounce, absEvent)
 								dmu.Unlock()
-								a.uploadFile(p.path, p.fileType)
+								a.bus.Publish(saveDetectedEvent(p.path, p.fileType))
 							})
 							debounce[absEvent] = p
 						}
@@ -400,7 +425,7 @@ func (a *App) uploadExistingGameFolderFiles(folder string) {
 			log.Printf("initial run: marking file as sent without uploading: %s", fname)
 			continue
 		}
-		a.uploadFile(filepath.Join(folder, fname), ft)
+		a.bus.Publish(saveDetectedEvent(filepath.Join(folder, fname), ft))
 	}
 
 	if a.isInitialRun && len(initialFiles) > 0 {

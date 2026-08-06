@@ -54,6 +54,7 @@ func main() {
 	state.uploadCond = sync.NewCond(&state.uploadMu)
 
 	registerPasswordsHandlers(bus, state)
+	registerUploadHandlers(bus, state)
 	registerLogHandlers(bus, state)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
