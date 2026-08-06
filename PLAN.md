@@ -175,7 +175,7 @@ stop after any of them and resume later — tick the checkbox when done.
   `handler_startup.go` take over `setWatchDir`, `setLang`,
   `handleStartupToggle` (incl. first-run startup prompt). Verify: `./build.sh`.
 
-- [ ] **Step 6: Log projection.**
+- [x] **Step 6: Log projection.**
   Move every `addLog` call site into `handler_log.go` subscriptions
   (incl. mapping `UploadFailed.Kind` to existing translation keys). Business
   handlers no longer import logging. Verify: `./build.sh`.

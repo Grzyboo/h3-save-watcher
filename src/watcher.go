@@ -78,14 +78,14 @@ func (a *App) startWatcher(dir string) {
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		a.addLog(false, KeyLogWatcherInitError, err)
+		a.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchInitFailed})
 		return
 	}
 
 	// Always watch the root dir: its events let us detect the Games folder
 	// being created (or deleted and re-created) while the app is running.
 	if err := watcher.Add(dir); err != nil {
-		a.addLog(false, KeyLogWatchError, err)
+		a.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchAddFailed})
 		watcher.Close()
 		return
 	}
@@ -94,7 +94,7 @@ func (a *App) startWatcher(dir string) {
 	gamesDirWatched := false
 	if _, err := os.Stat(gamesDir); err == nil {
 		if err := watcher.Add(gamesDir); err != nil {
-			a.addLog(false, KeyLogWatchError, err)
+			a.bus.Publish(WatchFailed{Dir: gamesDir, Err: err, Kind: WatchAddFailed})
 		} else {
 			gamesDirWatched = true
 		}
@@ -225,7 +225,7 @@ func (a *App) startWatcher(dir string) {
 				if !ok {
 					return
 				}
-				a.addLog(false, KeyLogWatcherError, err)
+				a.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchRuntimeError})
 			}
 		}
 	}()

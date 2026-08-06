@@ -8,11 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 )
 
@@ -21,38 +18,28 @@ const (
 	headerSize = 16 * 1024
 )
 
-func (a *App) uploadFile(path string, fileType string) {
-	a.uploadMu.Lock()
-	a.uploadCount++
-	a.uploadMu.Unlock()
-	defer func() {
-		a.uploadMu.Lock()
-		a.uploadCount--
-		if a.uploadCount < 0 {
-			a.uploadCount = 0
-		}
-		a.uploadCond.Broadcast()
-		a.uploadMu.Unlock()
-	}()
+type uploadResult int
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		a.addLog(false, KeyLogReadError, a.relPath(path), err)
-		return
-	}
+const (
+	uploadOK uploadResult = iota
+	uploadAlreadyExists
+	uploadError
+)
 
+// uploadOutcome is the result of one upload attempt; kind/err are set only
+// when result is uploadError.
+type uploadOutcome struct {
+	result uploadResult
+	kind   UploadErrorKind
+	err    error
+}
+
+// uploadSaveFile uploads one save file to the server: analyze (locked) first,
+// then the actual upload. It is pure — no App state, no logging; the outcome
+// is reported back to the caller.
+func uploadSaveFile(path string, data []byte, info GameInfo, instanceID string) uploadOutcome {
 	filename := filepath.Base(path)
 	hash := fmt.Sprintf("%x", sha256.Sum256(data))
-
-	a.mu.Lock()
-	if a.lastUploadedHash[fileType] == hash {
-		a.mu.Unlock()
-		log.Printf("skipping duplicate upload: %s (%s), hash %s already uploaded", filename, fileType, hash)
-		return
-	}
-	a.lastUploadedHash[fileType] = hash
-	info := a.gameInfo
-	a.mu.Unlock()
 
 	xHost := "0"
 	if info.IsHost {
@@ -81,14 +68,12 @@ func (a *App) uploadFile(path string, fileType string) {
 		}},
 	})
 
-	analyzeResp, err := doRequest("POST", apiBase+"/upload/locked", "application/json", analyzeBody, a.instanceID, gameHeaders)
+	analyzeResp, err := doRequest("POST", apiBase+"/upload/locked", "application/json", analyzeBody, instanceID, gameHeaders)
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) {
-			a.addLog(false, KeyLogConnectionRefused, a.relPath(path))
-		} else {
-			a.addLog(false, KeyLogUploadError, a.relPath(path), err)
+			return uploadOutcome{result: uploadError, kind: UploadErrConnectionRefused, err: err}
 		}
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrRequest, err: err}
 	}
 
 	var analyzeResult struct {
@@ -99,32 +84,25 @@ func (a *App) uploadFile(path string, fileType string) {
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(analyzeResp, &analyzeResult); err != nil {
-		a.addLog(false, KeyLogInvalidAnalyzeResp, a.relPath(path))
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrInvalidAnalyzeResp, err: err}
 	}
 	if len(analyzeResult.Results) == 0 {
-		a.addLog(false, KeyLogEmptyResults, a.relPath(path))
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrEmptyResults}
 	}
 	result := analyzeResult.Results[0]
 	if result.Error != "" {
 		if result.Error == "already_exists" {
-			a.markFileAsSent(path, filename)
-			log.Printf("upload %s: file already exists on server, cached as sent", filename)
-			return
+			return uploadOutcome{result: uploadAlreadyExists}
 		}
-		a.addLog(false, KeyLogServerError, a.relPath(path), result.Error)
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrServer, err: errors.New(result.Error)}
 	}
 
-	uploadResp, err := doRequest("POST", apiBase+"/upload/"+result.FileUploadKey, "application/octet-stream", data, a.instanceID, gameHeaders)
+	uploadResp, err := doRequest("POST", apiBase+"/upload/"+result.FileUploadKey, "application/octet-stream", data, instanceID, gameHeaders)
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) {
-			a.addLog(false, KeyLogConnectionRefused, a.relPath(path))
-		} else {
-			a.addLog(false, KeyLogUploadError, a.relPath(path), err)
+			return uploadOutcome{result: uploadError, kind: UploadErrConnectionRefused, err: err}
 		}
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrRequest, err: err}
 	}
 
 	var uploadResult struct {
@@ -134,59 +112,16 @@ func (a *App) uploadFile(path string, fileType string) {
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal(uploadResp, &uploadResult); err != nil {
-		a.addLog(false, KeyLogInvalidUploadResp, a.relPath(path))
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrInvalidUploadResp, err: err}
 	}
 	if !uploadResult.Ok {
 		if uploadResult.Error == "already_exists" {
-			a.markFileAsSent(path, filename)
-			log.Printf("upload %s: file already exists on server, cached as sent", filename)
-			return
+			return uploadOutcome{result: uploadAlreadyExists}
 		}
-		a.addLog(false, KeyLogServerRejected, a.relPath(path))
-		return
+		return uploadOutcome{result: uploadError, kind: UploadErrServerRejected}
 	}
 
-	a.addLog(true, KeyLogUploaded, a.relPath(path))
-
-	a.sentFoldersMu.Lock()
-	folder := a.watchedGameFolder
-	if folder != "" {
-		absPath, _ := filepath.Abs(path)
-		absFolder, _ := filepath.Abs(folder)
-		if strings.HasPrefix(absPath, absFolder+string(os.PathSeparator)) {
-			a.sentFoldersCache.addFile(absFolder, filename)
-			if err := a.sentFoldersCache.save(); err != nil {
-				log.Printf("failed to save sent folders cache: %v", err)
-			}
-		}
-	}
-	a.sentFoldersMu.Unlock()
-}
-
-// markFileAsSent records a file in the sent-folders cache if it belongs to the
-// currently watched game folder. This is used when the server reports that the
-// file already exists, so the app does not keep retrying the upload.
-func (a *App) markFileAsSent(path, filename string) {
-	a.mu.Lock()
-	folder := a.watchedGameFolder
-	a.mu.Unlock()
-	if folder == "" {
-		return
-	}
-
-	absPath, _ := filepath.Abs(path)
-	absFolder, _ := filepath.Abs(folder)
-	if absFolder == "" || !strings.HasPrefix(absPath, absFolder+string(os.PathSeparator)) {
-		return
-	}
-
-	a.sentFoldersMu.Lock()
-	a.sentFoldersCache.addFile(absFolder, filename)
-	if err := a.sentFoldersCache.save(); err != nil {
-		log.Printf("failed to save sent folders cache: %v", err)
-	}
-	a.sentFoldersMu.Unlock()
+	return uploadOutcome{result: uploadOK}
 }
 
 func doRequest(method, url, contentType string, body []byte, instanceID string, extraHeaders map[string]string) ([]byte, error) {

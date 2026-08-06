@@ -15,7 +15,6 @@ func registerPasswordsHandlers(bus *Bus, a *App) {
 			a.mu.Lock()
 			a.gameInfo = GameInfo{}
 			a.mu.Unlock()
-			a.addLog(false, KeyLogPasswordsReadError, err)
 			bus.Publish(PasswordsInvalid{Path: path, Err: err, Kind: PasswordsReadFailed})
 			return
 		}
@@ -25,7 +24,6 @@ func registerPasswordsHandlers(bus *Bus, a *App) {
 			a.mu.Lock()
 			a.gameInfo = GameInfo{}
 			a.mu.Unlock()
-			a.addLog(false, KeyLogPasswordsParseError, err)
 			bus.Publish(PasswordsInvalid{Path: path, Err: err, Kind: PasswordsParseFailed})
 			return
 		}
@@ -41,10 +39,6 @@ func registerPasswordsHandlers(bus *Bus, a *App) {
 			a.gameInfo.Password != info.Password
 		a.gameInfo = info
 		a.mu.Unlock()
-
-		if changed {
-			a.addLog(true, KeyLogPasswordsLoaded, info.PlayerName, info.OpponentName)
-		}
 
 		bus.Publish(PasswordsLoaded{Info: info, Changed: changed})
 	}

@@ -21,7 +21,7 @@ func registerGameFolderHandlers(bus *Bus, a *App) {
 	Subscribe(bus, func(e GamesDirRemoved) { a.onGamesDirRemoved() })
 	Subscribe(bus, func(e PasswordsLoaded) { a.scheduleGameFolderWatch(bus) })
 	Subscribe(bus, func(e GameFolderResolveRequested) { a.resolveAndWatchGameFolder(bus) })
-	Subscribe(bus, func(e GameFolderResolved) { a.switchGameFolder(e.Folder) })
+	Subscribe(bus, func(e GameFolderResolved) { a.switchGameFolder(bus, e.Folder) })
 	Subscribe(bus, func(e GameFolderNotFound) { log.Printf("game folder not found: %v", e.Err) })
 }
 
@@ -39,7 +39,7 @@ func (a *App) onGamesDirAppeared(bus *Bus, gamesDir string) {
 	}
 
 	if err := watcher.Add(gamesDir); err != nil {
-		a.addLog(false, KeyLogWatchError, err)
+		bus.Publish(WatchFailed{Dir: gamesDir, Err: err, Kind: WatchAddFailed})
 		return
 	}
 
@@ -142,7 +142,7 @@ func (a *App) resolveAndWatchGameFolder(bus *Bus) {
 
 // switchGameFolder removes the old game folder watch and starts watching the
 // new one, then runs the initial scan.
-func (a *App) switchGameFolder(folder string) {
+func (a *App) switchGameFolder(bus *Bus, folder string) {
 	a.mu.Lock()
 	oldFolder := a.watchedGameFolder
 	watcher := a.watcher
@@ -155,7 +155,7 @@ func (a *App) switchGameFolder(folder string) {
 
 	if watcher != nil {
 		if err := watcher.Add(folder); err != nil {
-			a.addLog(false, KeyLogWatchError, err)
+			bus.Publish(WatchFailed{Dir: folder, Err: err, Kind: WatchAddFailed})
 			return
 		}
 	}
@@ -173,7 +173,9 @@ func (a *App) uploadExistingGameFolderFiles(folder string) {
 
 	entries, err := os.ReadDir(folder)
 	if err != nil {
-		a.addLog(false, KeyLogReadError, folder, err)
+		// Not an upload attempt (no matching UploadStarted); the log
+		// projection still maps this to the read-error entry.
+		a.bus.Publish(UploadFailed{Path: folder, Kind: UploadErrRead, Err: err})
 		return
 	}
 

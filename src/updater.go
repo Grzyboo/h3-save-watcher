@@ -367,7 +367,8 @@ func parseSemver(s string) [3]int {
 }
 
 // showUpdateNotification checks whether the application was just updated and,
-// if so, displays a one-time UI log entry and clears the pending version.
+// if so, publishes a one-time AppUpdated fact (shown in the log panel) and
+// clears the pending version.
 func (a *App) showUpdateNotification() {
 	cfg := loadConfig()
 	raw := strings.TrimSpace(cfg.UpdatedToVersion)
@@ -379,7 +380,7 @@ func (a *App) showUpdateNotification() {
 
 	version := strings.TrimPrefix(raw, "v")
 	if version != "" {
-		a.addLog(true, KeyLogUpdated, version)
+		a.bus.Publish(AppUpdated{Version: version})
 	}
 }
 
