@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sync"
 )
 
 func main() {
@@ -46,30 +45,59 @@ func main() {
 		startLang = LangEN
 	}
 
-	state := &App{window: w, lang: startLang, firstRun: cfg.WatchDir == "", instanceID: cfg.InstanceID, lastUploadedHash: make(map[string]string), sentFoldersCache: loadSentFoldersCache(), isInitialRun: isInitialRun}
-	state.uploadCond = sync.NewCond(&state.uploadMu)
+	bus := NewBus()
+	go bus.Run()
+	defer bus.Stop()
+
+	s := &State{
+		firstRun:         cfg.WatchDir == "",
+		isInitialRun:     isInitialRun,
+		lastUploadedHash: make(map[string]string),
+		sentFoldersCache: loadSentFoldersCache(),
+		instanceID:       cfg.InstanceID,
+	}
+	s.setLang(startLang)
 	log.Printf("instance ID: %s", cfg.InstanceID)
 
-	// Check for updates every hour in background — fails silently, app keeps running.
-	go state.startUpdateChecker()
+	logs := &logStore{}
+	watcher := NewWatcher(bus)
+	sched := newGameFolderScheduler()
+	uploads := newUploadTracker()
+	ui := &uiRefs{window: w}
 
-	buildUI(state, w, fyneApp)
-	state.showUpdateNotification()
-	state.startLogPruner()
+	registerPasswordsHandlers(bus, s)
+	registerUploadHandlers(bus, s, uploads)
+	registerGameFolderHandlers(bus, s, watcher, sched)
+	registerWatchDirHandlers(bus, s, ui, watcher)
+	registerLanguageHandlers(bus, s, ui, logs)
+	registerStartupHandlers(bus, s, ui)
+	registerLogHandlers(bus, s, logs)
+
+	up := &updater{bus: bus, watcher: watcher, sched: sched, uploads: uploads}
+	// Check for updates every hour in background — fails silently, app keeps running.
+	go up.startUpdateChecker()
+
+	buildUI(bus, s, ui, logs, w)
+	up.showUpdateNotification()
+	logs.startPruner()
 
 	if cfg.WatchDir != "" {
 		if root, err := resolveH3Root(cfg.WatchDir); err == nil {
-			state.dirLabel.SetText(root)
-			state.startWatcher(root)
+			if root != cfg.WatchDir {
+				cfg.WatchDir = root
+				saveConfig(cfg)
+			}
+			ui.dirLabel.SetText(root)
+			watcher.Start(root)
 		}
 	} else if !startInTray {
 		// First run — attempt auto-discovery after window is shown.
 		// Skip dialogs when starting in tray; user can open the window manually.
-		runAutoDiscovery(state, w)
+		runAutoDiscovery(bus, s, w)
 	}
 
 	log.Println("pre-tray setup")
-	setupTray(state, w, fyneApp)
+	setupTray(s, w, fyneApp)
 
 	// Hide to tray on window close instead of quitting.
 	w.SetCloseIntercept(func() {
@@ -85,17 +113,6 @@ func main() {
 		w.ShowAndRun()
 	}
 
-	state.mu.Lock()
-	if state.watcher != nil {
-		state.watcher.Close()
-	}
-	if state.gameFolderCancel != nil {
-		state.gameFolderCancel()
-		state.gameFolderCancel = nil
-	}
-	if state.gameFolderDebounce != nil {
-		state.gameFolderDebounce.Stop()
-		state.gameFolderDebounce = nil
-	}
-	state.mu.Unlock()
+	_ = watcher.Close()
+	sched.stop()
 }

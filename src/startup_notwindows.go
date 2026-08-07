@@ -2,6 +2,6 @@
 
 package main
 
-func isStartupEnabledWindows() bool  { return false }
+func isStartupEnabledWindows() bool       { return false }
 func enableStartupWindows(_ string) error { return nil }
 func disableStartupWindows() error        { return nil }

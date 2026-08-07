@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"path/filepath"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	logMaxAge       = 24 * time.Hour
+	logMaxAge        = 24 * time.Hour
 	logPruneInterval = time.Hour
 )
 
@@ -38,40 +38,91 @@ func (e LogEntry) Format(t string) string {
 	return fmt.Sprintf("[%s] %s%s", e.Time.Format("15:04:05"), status, msg)
 }
 
-func (a *App) addLog(success bool, key TranslationKey, args ...any) {
+// logStore owns the activity log. The bus appends entries while widget.List
+// callbacks and the pruner may read them from other goroutines.
+type logStore struct {
+	mu      sync.Mutex
+	entries []LogEntry
+	list    *widget.List
+}
+
+func (l *logStore) add(success bool, key TranslationKey, args ...any) {
 	entry := LogEntry{Time: time.Now(), Success: success, Key: key, Args: args}
-	a.mu.Lock()
-	a.logs = append(a.logs, entry)
-	n := len(a.logs)
-	a.mu.Unlock()
+	l.mu.Lock()
+	l.entries = append(l.entries, entry)
+	n := len(l.entries)
+	list := l.list
+	l.mu.Unlock()
+	if list == nil {
+		return
+	}
 	fyne.Do(func() {
-		a.logList.Refresh()
+		list.Refresh()
 		if n > 0 {
-			a.logList.ScrollTo(n - 1)
+			list.ScrollTo(n - 1)
 		}
 	})
 }
 
-func (a *App) relPath(abs string) string {
-	return filepath.Base(abs)
+func (l *logStore) setList(list *widget.List) {
+	l.mu.Lock()
+	l.list = list
+	l.mu.Unlock()
 }
 
-func buildLogList(a *App) *widget.List {
+// refresh is called on Fyne's goroutine by UI handlers.
+func (l *logStore) refresh() {
+	l.mu.Lock()
+	list := l.list
+	l.mu.Unlock()
+	if list != nil {
+		list.Refresh()
+	}
+}
+
+func (l *logStore) startPruner() {
+	go func() {
+		ticker := time.NewTicker(logPruneInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			cutoff := time.Now().Add(-logMaxAge)
+			l.mu.Lock()
+			before := len(l.entries)
+			keep := l.entries[:0]
+			for _, e := range l.entries {
+				if !e.Time.Before(cutoff) {
+					keep = append(keep, e)
+				}
+			}
+			l.entries = keep
+			removed := before - len(l.entries)
+			l.mu.Unlock()
+			if removed > 0 {
+				log.Printf("log pruner: removed %d entr%s older than 24h", removed, map[bool]string{true: "y", false: "ies"}[removed == 1])
+				fyne.Do(func() { l.refresh() })
+			} else {
+				log.Println("log pruner: ran, no stale entries found")
+			}
+		}
+	}()
+}
+
+func buildLogList(store *logStore, translate func(TranslationKey) string) *widget.List {
 	list := widget.NewList(
 		func() int {
-			a.mu.Lock()
-			defer a.mu.Unlock()
-			return len(a.logs)
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			return len(store.entries)
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("")
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			a.mu.Lock()
-			entry := a.logs[id]
-			a.mu.Unlock()
+			store.mu.Lock()
+			entry := store.entries[id]
+			store.mu.Unlock()
 			lbl := obj.(*widget.Label)
-			lbl.SetText(entry.Format(a.T(entry.Key)))
+			lbl.SetText(entry.Format(translate(entry.Key)))
 			if entry.Success {
 				lbl.Importance = widget.MediumImportance
 			} else {
@@ -82,39 +133,12 @@ func buildLogList(a *App) *widget.List {
 	list.OnSelected = func(id widget.ListItemID) {
 		list.Unselect(id)
 	}
-	a.logList = list
+	store.setList(list)
 	return list
 }
 
-func (a *App) startLogPruner() {
-	go func() {
-		ticker := time.NewTicker(logPruneInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			cutoff := time.Now().Add(-logMaxAge)
-			a.mu.Lock()
-			before := len(a.logs)
-			keep := a.logs[:0]
-			for _, e := range a.logs {
-				if !e.Time.Before(cutoff) {
-					keep = append(keep, e)
-				}
-			}
-			a.logs = keep
-			removed := before - len(a.logs)
-			a.mu.Unlock()
-			if removed > 0 {
-				log.Printf("log pruner: removed %d entr%s older than 24h", removed, map[bool]string{true: "y", false: "ies"}[removed == 1])
-				fyne.Do(func() { a.logList.Refresh() })
-			} else {
-				log.Println("log pruner: ran, no stale entries found")
-			}
-		}
-	}()
-}
-
-func buildLogPanel(a *App) fyne.CanvasObject {
-	list := buildLogList(a)
+func buildLogPanel(store *logStore, translate func(TranslationKey) string) fyne.CanvasObject {
+	list := buildLogList(store, translate)
 	bg := canvas.NewRectangle(color.NRGBA{R: 30, G: 30, B: 30, A: 255})
 	padded := container.NewPadded(list)
 	return container.NewPadded(container.NewStack(bg, padded))
