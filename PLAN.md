@@ -186,7 +186,7 @@ stop after any of them and resume later — tick the checkbox when done.
   upload counter/cond used by the auto-updater. Final cleanup pass.
   Verify: `./build.sh`.
 
-- [ ] **Step 8: Docs.**
+- [x] **Step 8: Docs.**
   Add a short architecture paragraph to `AGENTS.md` (bus + events + handlers
   layout). Verify: `./build.sh`.
 
