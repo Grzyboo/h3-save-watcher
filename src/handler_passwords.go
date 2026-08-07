@@ -6,24 +6,20 @@ import (
 
 // registerPasswordsHandlers wires the passwords.txt pipeline:
 // PasswordsCreated/Modified → parse → PasswordsLoaded/PasswordsInvalid.
-func registerPasswordsHandlers(bus *Bus, a *App) {
+func registerPasswordsHandlers(bus *Bus, s *State) {
 	// handle reads and parses passwords.txt at path, updates gameInfo and
 	// publishes the outcome. Runs on the bus goroutine.
 	handle := func(path string) {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			a.mu.Lock()
-			a.gameInfo = GameInfo{}
-			a.mu.Unlock()
+			s.gameInfo = GameInfo{}
 			bus.Publish(PasswordsInvalid{Path: path, Err: err, Kind: PasswordsReadFailed})
 			return
 		}
 
 		info, err := parsePasswordsTxt(data)
 		if err != nil {
-			a.mu.Lock()
-			a.gameInfo = GameInfo{}
-			a.mu.Unlock()
+			s.gameInfo = GameInfo{}
 			bus.Publish(PasswordsInvalid{Path: path, Err: err, Kind: PasswordsParseFailed})
 			return
 		}
@@ -33,12 +29,10 @@ func registerPasswordsHandlers(bus *Bus, a *App) {
 			info.GameTime = fi.ModTime()
 		}
 
-		a.mu.Lock()
-		changed := a.gameInfo.PlayerName != info.PlayerName ||
-			a.gameInfo.OpponentName != info.OpponentName ||
-			a.gameInfo.Password != info.Password
-		a.gameInfo = info
-		a.mu.Unlock()
+		changed := s.gameInfo.PlayerName != info.PlayerName ||
+			s.gameInfo.OpponentName != info.OpponentName ||
+			s.gameInfo.Password != info.Password
+		s.gameInfo = info
 
 		bus.Publish(PasswordsLoaded{Info: info, Changed: changed})
 	}

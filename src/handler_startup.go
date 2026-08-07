@@ -12,25 +12,25 @@ import (
 // registerStartupHandlers wires the startup toggle: StartupToggleRequested
 // runs the dialog flow; the StartupEnabled/StartupDisabled facts relabel the
 // button and show the info dialog.
-func registerStartupHandlers(bus *Bus, a *App) {
-	Subscribe(bus, func(e StartupToggleRequested) { a.startupToggleFlow(bus) })
+func registerStartupHandlers(bus *Bus, s *State, ui *uiRefs) {
+	Subscribe(bus, func(e StartupToggleRequested) { startupToggleFlow(bus, s, ui) })
 	Subscribe(bus, func(e StartupEnabled) {
 		fyne.Do(func() {
-			a.refreshStartupBtn()
-			dialog.ShowInformation(a.T(KeyStartupEnableTitle), a.T(KeyStartupSuccess), a.window)
+			refreshStartupBtn(s, ui)
+			dialog.ShowInformation(s.T(KeyStartupEnableTitle), s.T(KeyStartupSuccess), ui.window)
 		})
 	})
 	Subscribe(bus, func(e StartupDisabled) {
 		fyne.Do(func() {
-			a.refreshStartupBtn()
-			dialog.ShowInformation(a.T(KeyStartupDisableTitle), a.T(KeyStartupRemoved), a.window)
+			refreshStartupBtn(s, ui)
+			dialog.ShowInformation(s.T(KeyStartupDisableTitle), s.T(KeyStartupRemoved), ui.window)
 		})
 	})
 }
 
 // startupToggleFlow runs the enable/disable dialog flow. It runs on the bus
 // goroutine; all UI touches are wrapped in fyne.Do.
-func (a *App) startupToggleFlow(bus *Bus) {
+func startupToggleFlow(bus *Bus, s *State, ui *uiRefs) {
 	if !isStartupEnabled() {
 		// Check for suspicious path before enabling.
 		exe, err := os.Executable()
@@ -40,56 +40,56 @@ func (a *App) startupToggleFlow(bus *Bus) {
 		if isSuspiciousPath(exe) {
 			fyne.Do(func() {
 				dialog.ShowConfirm(
-					a.T(KeyStartupWarnTitle),
-					fmt.Sprintf(a.T(KeyStartupWarnMsg), exe),
+					s.T(KeyStartupWarnTitle),
+					fmt.Sprintf(s.T(KeyStartupWarnMsg), exe),
 					func(proceed bool) {
 						if proceed {
-							a.confirmEnableStartup(bus)
+							confirmEnableStartup(bus, s, ui)
 						}
 					},
-					a.window,
+					ui.window,
 				)
 			})
 			return
 		}
-		a.confirmEnableStartup(bus)
+		confirmEnableStartup(bus, s, ui)
 	} else {
 		fyne.Do(func() {
 			dialog.ShowConfirm(
-				a.T(KeyStartupDisableTitle),
-				a.T(KeyStartupDisableConfirm),
+				s.T(KeyStartupDisableTitle),
+				s.T(KeyStartupDisableConfirm),
 				func(ok bool) {
 					if !ok {
 						return
 					}
 					if err := disableStartup(); err != nil {
-						dialog.ShowError(fmt.Errorf(a.T(KeyStartupError), err), a.window)
+						dialog.ShowError(fmt.Errorf(s.T(KeyStartupError), err), ui.window)
 						return
 					}
 					bus.Publish(StartupDisabled{})
 				},
-				a.window,
+				ui.window,
 			)
 		})
 	}
 }
 
-func (a *App) confirmEnableStartup(bus *Bus) {
+func confirmEnableStartup(bus *Bus, s *State, ui *uiRefs) {
 	fyne.Do(func() {
 		dialog.ShowConfirm(
-			a.T(KeyStartupEnableTitle),
-			a.T(KeyStartupEnableConfirm),
+			s.T(KeyStartupEnableTitle),
+			s.T(KeyStartupEnableConfirm),
 			func(ok bool) {
 				if !ok {
 					return
 				}
 				if err := enableStartup(); err != nil {
-					dialog.ShowError(fmt.Errorf(a.T(KeyStartupError), err), a.window)
+					dialog.ShowError(fmt.Errorf(s.T(KeyStartupError), err), ui.window)
 					return
 				}
 				bus.Publish(StartupEnabled{})
 			},
-			a.window,
+			ui.window,
 		)
 	})
 }

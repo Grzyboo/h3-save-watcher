@@ -53,57 +53,64 @@ func turnNumber(path string) int {
 	return n
 }
 
-func (a *App) startWatcher(dir string) {
-	a.mu.Lock()
-	if a.watcher != nil {
-		_ = a.watcher.Close()
-		a.watcher = nil
+// Watcher is the fsnotify producer: it owns the fsnotify watcher, debounces
+// file events and publishes domain events on the bus. It contains no business
+// logic. All methods are safe to call from any goroutine.
+type Watcher struct {
+	bus *Bus
+
+	mu         sync.Mutex
+	fsn        *fsnotify.Watcher
+	gameFolder string // current game folder, used by the read loop to route save events
+}
+
+func NewWatcher(bus *Bus) *Watcher {
+	return &Watcher{bus: bus}
+}
+
+// Start (re)starts the watcher on the given H3 root dir: closes any previous
+// watcher, sets up fsnotify, publishes the initial PasswordsCreated and
+// WatchStarted, and launches the event read loop.
+func (w *Watcher) Start(dir string) {
+	w.mu.Lock()
+	if w.fsn != nil {
+		_ = w.fsn.Close()
+		w.fsn = nil
 	}
-	if a.gameFolderCancel != nil {
-		a.gameFolderCancel()
-		a.gameFolderCancel = nil
-	}
-	if a.gameFolderDebounce != nil {
-		a.gameFolderDebounce.Stop()
-		a.gameFolderDebounce = nil
-	}
-	a.watchedGameFolder = ""
-	a.gamesDirWatched = false
-	a.watchDir = dir
-	a.mu.Unlock()
+	w.gameFolder = ""
+	w.mu.Unlock()
 
 	if dir == "" {
 		return
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	fsn, err := fsnotify.NewWatcher()
 	if err != nil {
-		a.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchInitFailed})
+		w.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchInitFailed})
 		return
 	}
 
 	// Always watch the root dir: its events let us detect the Games folder
 	// being created (or deleted and re-created) while the app is running.
-	if err := watcher.Add(dir); err != nil {
-		a.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchAddFailed})
-		watcher.Close()
+	if err := fsn.Add(dir); err != nil {
+		w.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchAddFailed})
+		fsn.Close()
 		return
 	}
 
 	gamesDir := filepath.Join(dir, "Games")
 	gamesDirWatched := false
 	if _, err := os.Stat(gamesDir); err == nil {
-		if err := watcher.Add(gamesDir); err != nil {
-			a.bus.Publish(WatchFailed{Dir: gamesDir, Err: err, Kind: WatchAddFailed})
+		if err := fsn.Add(gamesDir); err != nil {
+			w.bus.Publish(WatchFailed{Dir: gamesDir, Err: err, Kind: WatchAddFailed})
 		} else {
 			gamesDirWatched = true
 		}
 	}
 
-	a.mu.Lock()
-	a.watcher = watcher
-	a.gamesDirWatched = gamesDirWatched
-	a.mu.Unlock()
+	w.mu.Lock()
+	w.fsn = fsn
+	w.mu.Unlock()
 
 	absToType := make(map[string]string, len(watchedFiles))
 	for _, wf := range watchedFiles {
@@ -116,117 +123,165 @@ func (a *App) startWatcher(dir string) {
 
 	// Initial passwords.txt load (handled like a create event), then the
 	// watcher-started fact; the bus processes them in publish order.
-	a.bus.Publish(PasswordsCreated{Path: absPasswords})
-	a.bus.Publish(WatchStarted{Dir: dir})
+	w.bus.Publish(PasswordsCreated{Path: absPasswords})
+	w.bus.Publish(WatchStarted{Dir: dir, GamesDirWatched: gamesDirWatched})
 
-	go func() {
-		type pending struct {
-			path     string
-			fileType string
-			timer    *time.Timer
-		}
-		debounce := make(map[string]*pending)
-		var passwordsTimer *time.Timer
-		passwordsCreated := false
-		var dmu sync.Mutex
+	go w.readLoop(fsn, dir, gamesDir, absGames, absPasswords, absToType)
+}
 
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
+// AddDir adds a directory to the current watch (the Games dir or a game
+// folder). It is a no-op when the watcher is not running (app shutdown).
+func (w *Watcher) AddDir(dir string) error {
+	w.mu.Lock()
+	fsn := w.fsn
+	w.mu.Unlock()
+	if fsn == nil {
+		return nil
+	}
+	return fsn.Add(dir)
+}
+
+// RemoveDir drops a directory from the current watch; errors are ignored
+// (the watch may already be gone).
+func (w *Watcher) RemoveDir(dir string) {
+	w.mu.Lock()
+	fsn := w.fsn
+	w.mu.Unlock()
+	if fsn != nil {
+		_ = fsn.Remove(dir)
+	}
+}
+
+// SetGameFolder records the current game folder for save-event routing.
+func (w *Watcher) SetGameFolder(folder string) {
+	w.mu.Lock()
+	w.gameFolder = folder
+	w.mu.Unlock()
+}
+
+// Close stops the watcher, if running.
+func (w *Watcher) Close() error {
+	w.mu.Lock()
+	fsn := w.fsn
+	w.fsn = nil
+	w.gameFolder = ""
+	w.mu.Unlock()
+	if fsn == nil {
+		return nil
+	}
+	return fsn.Close()
+}
+
+// readLoop is the fsnotify event pump: it debounces raw events and publishes
+// the corresponding domain events. It runs on its own goroutine and never
+// touches State.
+func (w *Watcher) readLoop(fsn *fsnotify.Watcher, dir, gamesDir, absGames, absPasswords string, absToType map[string]string) {
+	type pending struct {
+		path     string
+		fileType string
+		timer    *time.Timer
+	}
+	debounce := make(map[string]*pending)
+	var passwordsTimer *time.Timer
+	passwordsCreated := false
+	var dmu sync.Mutex
+
+	for {
+		select {
+		case event, ok := <-fsn.Events:
+			if !ok {
+				return
+			}
+			absEvent, _ := filepath.Abs(event.Name)
+
+			if absEvent == absGames {
+				// The Games folder itself was created (or removed) while
+				// watching the root dir — pick it up without a restart.
+				if event.Op&fsnotify.Create != 0 {
+					w.bus.Publish(GamesDirAppeared{Dir: gamesDir})
+				} else if event.Op&fsnotify.Remove != 0 {
+					w.bus.Publish(GamesDirRemoved{})
 				}
-				absEvent, _ := filepath.Abs(event.Name)
+				continue
+			}
 
-				if absEvent == absGames {
-					// The Games folder itself was created (or removed) while
-					// watching the root dir — pick it up without a restart.
-					if event.Op&fsnotify.Create != 0 {
-						a.bus.Publish(GamesDirAppeared{Dir: gamesDir})
-					} else if event.Op&fsnotify.Remove != 0 {
-						a.bus.Publish(GamesDirRemoved{})
-					}
-					continue
+			if absEvent == absPasswords && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+				created := event.Op&fsnotify.Create != 0
+				dmu.Lock()
+				passwordsCreated = passwordsCreated || created
+				if passwordsTimer != nil {
+					passwordsTimer.Reset(watchedFilesDebounce)
+				} else {
+					passwordsTimer = time.AfterFunc(watchedFilesDebounce, func() {
+						dmu.Lock()
+						passwordsTimer = nil
+						created := passwordsCreated
+						passwordsCreated = false
+						dmu.Unlock()
+						if created {
+							w.bus.Publish(PasswordsCreated{Path: absPasswords})
+						} else {
+							w.bus.Publish(PasswordsModified{Path: absPasswords})
+						}
+					})
 				}
+				dmu.Unlock()
+				continue
+			}
 
-				if absEvent == absPasswords && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
-					created := event.Op&fsnotify.Create != 0
-					dmu.Lock()
-					passwordsCreated = passwordsCreated || created
-					if passwordsTimer != nil {
-						passwordsTimer.Reset(watchedFilesDebounce)
-					} else {
-						passwordsTimer = time.AfterFunc(watchedFilesDebounce, func() {
-							dmu.Lock()
-							passwordsTimer = nil
-							created := passwordsCreated
-							passwordsCreated = false
-							dmu.Unlock()
-							if created {
-								a.bus.Publish(PasswordsCreated{Path: absPasswords})
-							} else {
-								a.bus.Publish(PasswordsModified{Path: absPasswords})
-							}
-						})
-					}
-					dmu.Unlock()
-					continue
+			if fileType, matched := absToType[absEvent]; matched && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+				dmu.Lock()
+				if p, exists := debounce[absEvent]; exists {
+					p.timer.Reset(watchedFilesDebounce)
+				} else {
+					p := &pending{path: event.Name, fileType: fileType}
+					p.timer = time.AfterFunc(watchedFilesDebounce, func() {
+						dmu.Lock()
+						delete(debounce, absEvent)
+						dmu.Unlock()
+						w.bus.Publish(saveDetectedEvent(p.path, p.fileType))
+					})
+					debounce[absEvent] = p
 				}
+				dmu.Unlock()
+				continue
+			}
 
-				if fileType, matched := absToType[absEvent]; matched && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+			w.mu.Lock()
+			gf := w.gameFolder
+			w.mu.Unlock()
+			if gf != "" && strings.HasPrefix(absEvent, gf+string(os.PathSeparator)) && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
+				fname := filepath.Base(event.Name)
+				var ft string
+				switch {
+				case endTurnFile.MatchString(fname):
+					ft = "TURN_END"
+				case fname == "GAME_BEGIN.GM2":
+					ft = "GAME_BEGIN"
+				}
+				if ft != "" {
 					dmu.Lock()
 					if p, exists := debounce[absEvent]; exists {
 						p.timer.Reset(watchedFilesDebounce)
 					} else {
-						p := &pending{path: event.Name, fileType: fileType}
+						p := &pending{path: event.Name, fileType: ft}
 						p.timer = time.AfterFunc(watchedFilesDebounce, func() {
 							dmu.Lock()
 							delete(debounce, absEvent)
 							dmu.Unlock()
-							a.bus.Publish(saveDetectedEvent(p.path, p.fileType))
+							w.bus.Publish(saveDetectedEvent(p.path, p.fileType))
 						})
 						debounce[absEvent] = p
 					}
 					dmu.Unlock()
-					continue
 				}
-
-				a.mu.Lock()
-				gf := a.watchedGameFolder
-				a.mu.Unlock()
-				if gf != "" && strings.HasPrefix(absEvent, gf+string(os.PathSeparator)) && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0 {
-					fname := filepath.Base(event.Name)
-					var ft string
-					switch {
-					case endTurnFile.MatchString(fname) && (event.Op&(fsnotify.Write|fsnotify.Create)) != 0:
-						ft = "TURN_END"
-					case fname == "GAME_BEGIN.GM2":
-						ft = "GAME_BEGIN"
-					}
-					if ft != "" {
-						dmu.Lock()
-						if p, exists := debounce[absEvent]; exists {
-							p.timer.Reset(watchedFilesDebounce)
-						} else {
-							p := &pending{path: event.Name, fileType: ft}
-							p.timer = time.AfterFunc(watchedFilesDebounce, func() {
-								dmu.Lock()
-								delete(debounce, absEvent)
-								dmu.Unlock()
-								a.bus.Publish(saveDetectedEvent(p.path, p.fileType))
-							})
-							debounce[absEvent] = p
-						}
-						dmu.Unlock()
-					}
-				}
-
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				a.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchRuntimeError})
 			}
+
+		case err, ok := <-fsn.Errors:
+			if !ok {
+				return
+			}
+			w.bus.Publish(WatchFailed{Dir: dir, Err: err, Kind: WatchRuntimeError})
 		}
-	}()
+	}
 }

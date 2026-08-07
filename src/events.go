@@ -10,7 +10,12 @@ type Event interface{}
 // ---------------------------------------------------------------------------
 
 // WatchStarted is emitted when the watcher (re)started on an H3 root dir.
-type WatchStarted struct{ Dir string }
+// GamesDirWatched reports whether <root>/Games already existed and is being
+// watched from the start.
+type WatchStarted struct {
+	Dir             string
+	GamesDirWatched bool
+}
 
 // WatchFailureKind classifies watcher failures; the log projection maps kinds
 // to translation keys.

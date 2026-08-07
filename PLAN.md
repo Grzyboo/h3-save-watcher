@@ -180,7 +180,7 @@ stop after any of them and resume later — tick the checkbox when done.
   (incl. mapping `UploadFailed.Kind` to existing translation keys). Business
   handlers no longer import logging. Verify: `./build.sh`.
 
-- [ ] **Step 7: Dissolve `App`.**
+- [x] **Step 7: Dissolve `App`.**
   Replace `App` with `State` + `uiRefs` in `state.go`; delete the now-dead
   mutexes (`mu`, `sentFoldersMu` where safe); keep the log-store mutex and the
   upload counter/cond used by the auto-updater. Final cleanup pass.

@@ -35,6 +35,15 @@ type githubAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+// updater owns the self-update workflow and the producer references needed
+// to stop watching and wait for active uploads before restarting.
+type updater struct {
+	bus     *Bus
+	watcher *Watcher
+	sched   *gameFolderScheduler
+	uploads *uploadTracker
+}
+
 // cleanOldBinary removes <exe>.old left behind by a previous self-replace on
 // Windows (where the running binary cannot be deleted while open).
 func cleanOldBinary() {
@@ -52,58 +61,24 @@ func cleanOldBinary() {
 	}
 }
 
-func (a *App) startUpdateChecker() {
+func (u *updater) startUpdateChecker() {
 	for {
-		a.checkAndUpdate()
+		u.checkAndUpdate()
 		time.Sleep(updateCheckInterval)
 	}
 }
 
-func (a *App) stopWatcher() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.watcher != nil {
-		if err := a.watcher.Close(); err != nil {
-			log.Printf("updater: error closing watcher: %v", err)
-		}
-		a.watcher = nil
-		log.Println("updater: stopped file watcher before restart")
+func (u *updater) stopWatcher() {
+	if err := u.watcher.Close(); err != nil {
+		log.Printf("updater: error closing watcher: %v", err)
 	}
-	if a.gameFolderCancel != nil {
-		a.gameFolderCancel()
-		a.gameFolderCancel = nil
-	}
-	if a.gameFolderDebounce != nil {
-		a.gameFolderDebounce.Stop()
-		a.gameFolderDebounce = nil
-	}
-}
-
-// waitForUploads blocks until all active uploads finish or the timeout expires.
-// It returns true if all uploads finished before the timeout.
-func (a *App) waitForUploads(timeout time.Duration) bool {
-	done := make(chan struct{})
-	go func() {
-		a.uploadMu.Lock()
-		for a.uploadCount > 0 {
-			a.uploadCond.Wait()
-		}
-		a.uploadMu.Unlock()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return true
-	case <-time.After(timeout):
-		return false
-	}
+	u.sched.stop()
+	log.Println("updater: stopped file watcher before restart")
 }
 
 // checks for a newer release, downloads + verifies it, self-replaces the binary, then restarts the process.
 // Any failure is logged and the function returns silently — the app keeps running.
-func (a *App) checkAndUpdate() {
+func (u *updater) checkAndUpdate() {
 	if githubRepo == "" || appVersion == "" {
 		log.Println("updater: githubRepo or appVersion not set, skipping")
 		return
@@ -230,8 +205,8 @@ func (a *App) checkAndUpdate() {
 
 	// Stop watching for further file changes, then wait briefly for any
 	// in-progress uploads to finish before restarting.
-	a.stopWatcher()
-	if a.waitForUploads(uploadWaitTimeout) {
+	u.stopWatcher()
+	if u.uploads.wait(uploadWaitTimeout) {
 		log.Println("updater: all active uploads finished, restarting")
 	} else {
 		log.Printf("updater: timed out waiting for uploads after %v, restarting anyway", uploadWaitTimeout)
@@ -369,7 +344,7 @@ func parseSemver(s string) [3]int {
 // showUpdateNotification checks whether the application was just updated and,
 // if so, publishes a one-time AppUpdated fact (shown in the log panel) and
 // clears the pending version.
-func (a *App) showUpdateNotification() {
+func (u *updater) showUpdateNotification() {
 	cfg := loadConfig()
 	raw := strings.TrimSpace(cfg.UpdatedToVersion)
 	if raw == "" {
@@ -380,7 +355,7 @@ func (a *App) showUpdateNotification() {
 
 	version := strings.TrimPrefix(raw, "v")
 	if version != "" {
-		a.bus.Publish(AppUpdated{Version: version})
+		u.bus.Publish(AppUpdated{Version: version})
 	}
 }
 

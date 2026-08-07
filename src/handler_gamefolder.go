@@ -9,43 +9,130 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
+
+// gameFolderScheduler owns the game-folder resolve debounce timer and the
+// not-found retry loop. Both fire by publishing events. It has its own mutex
+// because timers fire on their own goroutines and stop is also called from
+// the updater and main (shutdown) goroutines.
+type gameFolderScheduler struct {
+	mu          sync.Mutex
+	debounce    *time.Timer
+	retryCancel context.CancelFunc
+}
+
+func newGameFolderScheduler() *gameFolderScheduler {
+	return &gameFolderScheduler{}
+}
+
+// schedule (re)arms the resolve debounce and cancels any retry loop.
+func (s *gameFolderScheduler) schedule(delay time.Duration, fire func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.retryCancel != nil {
+		s.retryCancel()
+		s.retryCancel = nil
+	}
+	if s.debounce != nil {
+		s.debounce.Reset(delay)
+		return
+	}
+	s.debounce = time.AfterFunc(delay, func() {
+		s.mu.Lock()
+		s.debounce = nil
+		s.mu.Unlock()
+		fire()
+	})
+}
+
+// startRetry launches the retry loop, canceling any previous one.
+func (s *gameFolderScheduler) startRetry(interval time.Duration, fire func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.retryCancel != nil {
+		s.retryCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.retryCancel = cancel
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				fire()
+			}
+		}
+	}()
+}
+
+// cancelRetry stops the retry loop, if any.
+func (s *gameFolderScheduler) cancelRetry() {
+	s.mu.Lock()
+	if s.retryCancel != nil {
+		s.retryCancel()
+		s.retryCancel = nil
+	}
+	s.mu.Unlock()
+}
+
+// stop cancels both the debounce and the retry loop.
+func (s *gameFolderScheduler) stop() {
+	s.mu.Lock()
+	if s.debounce != nil {
+		s.debounce.Stop()
+		s.debounce = nil
+	}
+	if s.retryCancel != nil {
+		s.retryCancel()
+		s.retryCancel = nil
+	}
+	s.mu.Unlock()
+}
 
 // registerGameFolderHandlers wires the game-folder pipeline: the Games dir
 // appearing/disappearing at runtime, and game-folder resolution (5s debounce
 // after passwords load, 60s retry loop, watch switch + initial scan on
 // success).
-func registerGameFolderHandlers(bus *Bus, a *App) {
-	Subscribe(bus, func(e GamesDirAppeared) { a.onGamesDirAppeared(bus, e.Dir) })
-	Subscribe(bus, func(e GamesDirRemoved) { a.onGamesDirRemoved() })
-	Subscribe(bus, func(e PasswordsLoaded) { a.scheduleGameFolderWatch(bus) })
-	Subscribe(bus, func(e GameFolderResolveRequested) { a.resolveAndWatchGameFolder(bus) })
-	Subscribe(bus, func(e GameFolderResolved) { a.switchGameFolder(bus, e.Folder) })
+func registerGameFolderHandlers(bus *Bus, s *State, w *Watcher, sched *gameFolderScheduler) {
+	Subscribe(bus, func(e GamesDirAppeared) { onGamesDirAppeared(bus, s, w, e.Dir) })
+	Subscribe(bus, func(e GamesDirRemoved) { onGamesDirRemoved(s, w) })
+	Subscribe(bus, func(e PasswordsLoaded) {
+		sched.schedule(gameFolderDebounceDelay, func() { bus.Publish(GameFolderResolveRequested{}) })
+	})
+	Subscribe(bus, func(e GameFolderResolveRequested) { resolveAndWatchGameFolder(bus, s, sched) })
+	Subscribe(bus, func(e GameFolderResolved) { switchGameFolder(bus, s, w, e.Folder) })
 	Subscribe(bus, func(e GameFolderNotFound) { log.Printf("game folder not found: %v", e.Err) })
+
+	// A watcher (re)start resets all watch state. WatchStarted is published
+	// right after PasswordsCreated, so gameInfo is already fresh here.
+	Subscribe(bus, func(e WatchStarted) {
+		s.watchDir = e.Dir
+		s.watchedGameFolder = ""
+		s.gamesDirWatched = e.GamesDirWatched
+		sched.stop()
+	})
 }
 
 // onGamesDirAppeared adds <root>/Games to the fsnotify watcher after the
 // folder appears (it may not have existed when the watcher was started). If
 // passwords.txt is already there, a load is triggered right away; otherwise
 // its Create event will trigger a load via the regular event branch.
-func (a *App) onGamesDirAppeared(bus *Bus, gamesDir string) {
-	a.mu.Lock()
-	already := a.gamesDirWatched
-	watcher := a.watcher
-	a.mu.Unlock()
-	if already || watcher == nil {
+func onGamesDirAppeared(bus *Bus, s *State, w *Watcher, gamesDir string) {
+	if s.gamesDirWatched {
 		return
 	}
 
-	if err := watcher.Add(gamesDir); err != nil {
+	if err := w.AddDir(gamesDir); err != nil {
 		bus.Publish(WatchFailed{Dir: gamesDir, Err: err, Kind: WatchAddFailed})
 		return
 	}
 
-	a.mu.Lock()
-	a.gamesDirWatched = true
-	a.mu.Unlock()
+	s.gamesDirWatched = true
 	log.Printf("Games folder detected, watching: %s", gamesDir)
 
 	if _, err := os.Stat(filepath.Join(gamesDir, "passwords.txt")); err == nil {
@@ -55,127 +142,67 @@ func (a *App) onGamesDirAppeared(bus *Bus, gamesDir string) {
 
 // onGamesDirRemoved drops the watch on <root>/Games after the folder was
 // removed, so that a later re-creation triggers GamesDirAppeared again.
-func (a *App) onGamesDirRemoved() {
-	a.mu.Lock()
-	a.gamesDirWatched = false
-	watcher := a.watcher
-	dir := a.watchDir
-	a.mu.Unlock()
-	if watcher == nil || dir == "" {
+func onGamesDirRemoved(s *State, w *Watcher) {
+	s.gamesDirWatched = false
+	if s.watchDir == "" {
 		return
 	}
-	gamesDir := filepath.Join(dir, "Games")
-	_ = watcher.Remove(gamesDir) // the watch may already be gone — ignore
+	gamesDir := filepath.Join(s.watchDir, "Games")
+	w.RemoveDir(gamesDir)
 	log.Printf("Games folder removed, will re-watch on re-creation: %s", gamesDir)
-}
-
-// scheduleGameFolderWatch schedules a game folder resolution attempt after
-// a 5-second debounce. It cancels any previously scheduled attempt or retry loop.
-func (a *App) scheduleGameFolderWatch(bus *Bus) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.gameFolderCancel != nil {
-		a.gameFolderCancel()
-		a.gameFolderCancel = nil
-	}
-	if a.gameFolderDebounce != nil {
-		a.gameFolderDebounce.Reset(gameFolderDebounceDelay)
-	} else {
-		a.gameFolderDebounce = time.AfterFunc(gameFolderDebounceDelay, func() {
-			a.mu.Lock()
-			a.gameFolderDebounce = nil
-			a.mu.Unlock()
-			bus.Publish(GameFolderResolveRequested{})
-		})
-	}
 }
 
 // resolveAndWatchGameFolder determines the current game folder and publishes
 // GameFolderResolved. If the game folder cannot be found, it publishes
 // GameFolderNotFound and retries every minute.
-func (a *App) resolveAndWatchGameFolder(bus *Bus) {
-	a.mu.Lock()
-	dir := a.watchDir
-	info := a.gameInfo
-	a.mu.Unlock()
-
-	if dir == "" || info.OpponentName == "" {
+func resolveAndWatchGameFolder(bus *Bus, s *State, sched *gameFolderScheduler) {
+	if s.watchDir == "" || s.gameInfo.OpponentName == "" {
 		return
 	}
 
-	folder, err := determineGameFolder(dir, info)
+	folder, err := determineGameFolder(s.watchDir, s.gameInfo)
 	if err != nil {
-		bus.Publish(GameFolderNotFound{Opponent: info.OpponentName, Err: err})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		a.mu.Lock()
-		if a.gameFolderCancel != nil {
-			a.gameFolderCancel()
-		}
-		a.gameFolderCancel = cancel
-		a.mu.Unlock()
-
-		go func() {
-			ticker := time.NewTicker(gameFolderRetryInterval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					bus.Publish(GameFolderResolveRequested{})
-				}
-			}
-		}()
+		bus.Publish(GameFolderNotFound{Opponent: s.gameInfo.OpponentName, Err: err})
+		sched.startRetry(gameFolderRetryInterval, func() { bus.Publish(GameFolderResolveRequested{}) })
 		return
 	}
 
-	a.mu.Lock()
-	if a.gameFolderCancel != nil {
-		a.gameFolderCancel()
-		a.gameFolderCancel = nil
-	}
-	a.mu.Unlock()
-
+	sched.cancelRetry()
 	bus.Publish(GameFolderResolved{Folder: folder})
 }
 
 // switchGameFolder removes the old game folder watch and starts watching the
 // new one, then runs the initial scan.
-func (a *App) switchGameFolder(bus *Bus, folder string) {
-	a.mu.Lock()
-	oldFolder := a.watchedGameFolder
-	watcher := a.watcher
-	a.watchedGameFolder = folder
-	a.mu.Unlock()
+func switchGameFolder(bus *Bus, s *State, w *Watcher, folder string) {
+	oldFolder := s.watchedGameFolder
+	s.watchedGameFolder = folder
+	w.SetGameFolder(folder)
 
-	if oldFolder != "" && oldFolder != folder && watcher != nil {
-		_ = watcher.Remove(oldFolder)
+	if oldFolder != "" && oldFolder != folder {
+		w.RemoveDir(oldFolder)
 	}
 
-	if watcher != nil {
-		if err := watcher.Add(folder); err != nil {
-			bus.Publish(WatchFailed{Dir: folder, Err: err, Kind: WatchAddFailed})
-			return
-		}
+	if err := w.AddDir(folder); err != nil {
+		bus.Publish(WatchFailed{Dir: folder, Err: err, Kind: WatchAddFailed})
+		return
 	}
 
 	log.Printf("watching game folder: %s", folder)
-	a.uploadExistingGameFolderFiles(folder)
+	uploadExistingGameFolderFiles(bus, s, folder)
 }
 
 // uploadExistingGameFolderFiles scans the game folder and publishes the
 // save-detected events for files that were not sent yet, so all uploads go
 // through one code path.
-func (a *App) uploadExistingGameFolderFiles(folder string) {
+func uploadExistingGameFolderFiles(bus *Bus, s *State, folder string) {
 	// Unset initial run to send all the future files normally
-	defer func() { a.isInitialRun = false }()
+	defer func() { s.isInitialRun = false }()
 
 	entries, err := os.ReadDir(folder)
 	if err != nil {
 		// Not an upload attempt (no matching UploadStarted); the log
 		// projection still maps this to the read-error entry.
-		a.bus.Publish(UploadFailed{Path: folder, Kind: UploadErrRead, Err: err})
+		bus.Publish(UploadFailed{Path: folder, Kind: UploadErrRead, Err: err})
 		return
 	}
 
@@ -198,34 +225,30 @@ func (a *App) uploadExistingGameFolderFiles(folder string) {
 			continue
 		}
 
-		a.sentFoldersMu.Lock()
-		alreadySent := a.sentFoldersCache.hasFile(absFolder, fname)
+		alreadySent := s.sentFoldersCache.hasFile(absFolder, fname)
 		if !alreadySent {
-			a.sentFoldersCache.addFile(absFolder, fname)
-			if a.isInitialRun {
+			s.sentFoldersCache.addFile(absFolder, fname)
+			if s.isInitialRun {
 				initialFiles = append(initialFiles, fname)
 			}
 		}
-		a.sentFoldersMu.Unlock()
 
 		if alreadySent {
 			log.Printf("skipping already sent file: %s", fname)
 			continue
 		}
-		if a.isInitialRun {
+		if s.isInitialRun {
 			log.Printf("initial run: marking file as sent without uploading: %s", fname)
 			continue
 		}
-		a.bus.Publish(saveDetectedEvent(filepath.Join(folder, fname), ft))
+		bus.Publish(saveDetectedEvent(filepath.Join(folder, fname), ft))
 	}
 
-	if a.isInitialRun && len(initialFiles) > 0 {
-		a.sentFoldersMu.Lock()
-		a.sentFoldersCache.setInfo(absFolder, fmt.Sprintf("Initial run, didn't send files: %s", strings.Join(initialFiles, ", ")))
-		if err := a.sentFoldersCache.save(); err != nil {
+	if s.isInitialRun && len(initialFiles) > 0 {
+		s.sentFoldersCache.setInfo(absFolder, fmt.Sprintf("Initial run, didn't send files: %s", strings.Join(initialFiles, ", ")))
+		if err := s.sentFoldersCache.save(); err != nil {
 			log.Printf("failed to save sent folders cache: %v", err)
 		}
-		a.sentFoldersMu.Unlock()
 	}
 }
 

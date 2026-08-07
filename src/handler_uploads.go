@@ -7,18 +7,66 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
+// uploadTracker is the upload counter/condition used by the auto-updater.
+// Upload state is changed on the bus goroutine; the mutex protects reads from
+// the updater goroutine while it waits for a restart-safe point.
+type uploadTracker struct {
+	mu    sync.Mutex
+	cond  *sync.Cond
+	count int
+}
+
+func newUploadTracker() *uploadTracker {
+	t := &uploadTracker{}
+	t.cond = sync.NewCond(&t.mu)
+	return t
+}
+
+func (t *uploadTracker) begin() {
+	t.mu.Lock()
+	t.count++
+	t.mu.Unlock()
+}
+
+func (t *uploadTracker) done() {
+	t.mu.Lock()
+	t.count--
+	if t.count < 0 {
+		t.count = 0
+	}
+	t.cond.Broadcast()
+	t.mu.Unlock()
+}
+
+// wait blocks until all active uploads finish or the timeout expires.
+func (t *uploadTracker) wait(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		t.mu.Lock()
+		for t.count > 0 {
+			t.cond.Wait()
+		}
+		t.mu.Unlock()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
 // registerUploadHandlers wires the upload pipeline: the five save-detected
-// events → hash dedup → upload goroutine → result events. The slow network
+// events -> hash dedup -> upload goroutine -> result events. The slow network
 // work runs on spawned goroutines so the event loop stays responsive and
-// uploads stay concurrent; results are reported back as events.
-//
-// It also owns the upload counter used by the auto-updater to wait for
-// in-flight uploads before restarting: UploadStarted increments it, the
-// terminal events (UploadSucceeded/UploadAlreadyOnServer/
-// UploadSkippedDuplicate/UploadFailed) decrement it.
-func registerUploadHandlers(bus *Bus, a *App) {
+// uploads stay concurrent.
+func registerUploadHandlers(bus *Bus, s *State, uploads *uploadTracker) {
 	detect := func(path, fileType string) {
 		bus.Publish(UploadStarted{Path: path})
 
@@ -29,19 +77,17 @@ func registerUploadHandlers(bus *Bus, a *App) {
 		}
 
 		hash := fmt.Sprintf("%x", sha256.Sum256(data))
-		a.mu.Lock()
-		if a.lastUploadedHash[fileType] == hash {
-			a.mu.Unlock()
+		if s.lastUploadedHash[fileType] == hash {
 			log.Printf("skipping duplicate upload: %s (%s), hash %s already uploaded", filepath.Base(path), fileType, hash)
 			bus.Publish(UploadSkippedDuplicate{Path: path})
 			return
 		}
-		a.lastUploadedHash[fileType] = hash
-		info := a.gameInfo
-		a.mu.Unlock()
+		s.lastUploadedHash[fileType] = hash
+		info := s.gameInfo
+		instanceID := s.instanceID
 
 		go func() {
-			outcome := uploadSaveFile(path, data, info, a.instanceID)
+			outcome := uploadSaveFile(path, data, info, instanceID)
 			switch outcome.result {
 			case uploadOK:
 				bus.Publish(UploadSucceeded{Path: path})
@@ -60,15 +106,12 @@ func registerUploadHandlers(bus *Bus, a *App) {
 	Subscribe(bus, func(e TurnEndSaveDetected) { detect(e.Path, "TURN_END") })
 
 	// inFlight tracks started uploads by path (bus goroutine only) so that an
-	// UploadFailed without a matching UploadStarted (e.g. a folder scan read
-	// error) never touches the counter.
+	// UploadFailed without a matching UploadStarted, such as a folder scan
+	// read error, never touches the counter.
 	inFlight := make(map[string]int)
-
 	Subscribe(bus, func(e UploadStarted) {
 		inFlight[e.Path]++
-		a.uploadMu.Lock()
-		a.uploadCount++
-		a.uploadMu.Unlock()
+		uploads.begin()
 	})
 
 	finish := func(path string) {
@@ -79,20 +122,17 @@ func registerUploadHandlers(bus *Bus, a *App) {
 		if inFlight[path] == 0 {
 			delete(inFlight, path)
 		}
-		a.uploadMu.Lock()
-		a.uploadCount--
-		a.uploadCond.Broadcast()
-		a.uploadMu.Unlock()
+		uploads.done()
 	}
 
 	Subscribe(bus, func(e UploadSucceeded) {
 		finish(e.Path)
-		a.markFileAsSent(e.Path)
+		markFileAsSent(s, e.Path)
 	})
 	Subscribe(bus, func(e UploadAlreadyOnServer) {
 		finish(e.Path)
 		log.Printf("upload %s: file already exists on server, cached as sent", filepath.Base(e.Path))
-		a.markFileAsSent(e.Path)
+		markFileAsSent(s, e.Path)
 	})
 	Subscribe(bus, func(e UploadSkippedDuplicate) { finish(e.Path) })
 	Subscribe(bus, func(e UploadFailed) { finish(e.Path) })
@@ -101,10 +141,8 @@ func registerUploadHandlers(bus *Bus, a *App) {
 // markFileAsSent records a file in the sent-folders cache if it belongs to
 // the currently watched game folder, so the app does not re-upload it after
 // a restart.
-func (a *App) markFileAsSent(path string) {
-	a.mu.Lock()
-	folder := a.watchedGameFolder
-	a.mu.Unlock()
+func markFileAsSent(s *State, path string) {
+	folder := s.watchedGameFolder
 	if folder == "" {
 		return
 	}
@@ -115,10 +153,8 @@ func (a *App) markFileAsSent(path string) {
 		return
 	}
 
-	a.sentFoldersMu.Lock()
-	a.sentFoldersCache.addFile(absFolder, filepath.Base(path))
-	if err := a.sentFoldersCache.save(); err != nil {
+	s.sentFoldersCache.addFile(absFolder, filepath.Base(path))
+	if err := s.sentFoldersCache.save(); err != nil {
 		log.Printf("failed to save sent folders cache: %v", err)
 	}
-	a.sentFoldersMu.Unlock()
 }

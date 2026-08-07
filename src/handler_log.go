@@ -3,19 +3,16 @@ package main
 import "path/filepath"
 
 // registerLogHandlers subscribes the log projection to fact events: every UI
-// log entry is produced here; business handlers never call addLog.
-func registerLogHandlers(bus *Bus, a *App) {
+// log entry is produced here; business handlers never call logStore directly.
+func registerLogHandlers(bus *Bus, s *State, logs *logStore) {
 	logf := func(success bool, key TranslationKey, args ...any) {
-		a.addLog(success, key, args...)
+		logs.add(success, key, args...)
 	}
 
-	// WatchStarted is always published right after PasswordsCreated, so by the
-	// time this handler runs the gameInfo reflects the freshly parsed file.
+	// WatchStarted is published right after PasswordsCreated, so by the time
+	// this handler runs gameInfo reflects the freshly parsed file.
 	Subscribe(bus, func(e WatchStarted) {
-		a.mu.Lock()
-		hasGameInfo := a.gameInfo.OpponentName != ""
-		a.mu.Unlock()
-		if hasGameInfo {
+		if s.gameInfo.OpponentName != "" {
 			logf(true, KeyLogWatching)
 		} else {
 			logf(true, KeyLogWatchingWaiting)

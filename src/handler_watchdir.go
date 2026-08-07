@@ -6,9 +6,9 @@ import (
 )
 
 // registerWatchDirHandlers wires watch-directory changes: the intent is
-// validated, persisted and applied (watcher restart); failures show an error
-// dialog.
-func registerWatchDirHandlers(bus *Bus, a *App) {
+// validated, persisted and applied by restarting the watcher; failures show
+// an error dialog.
+func registerWatchDirHandlers(bus *Bus, s *State, ui *uiRefs, watcher *Watcher) {
 	Subscribe(bus, func(e WatchDirChangeRequested) {
 		root, err := resolveH3Root(e.Dir)
 		if err != nil {
@@ -16,24 +16,19 @@ func registerWatchDirHandlers(bus *Bus, a *App) {
 			return
 		}
 
-		fyne.Do(func() { a.dirLabel.SetText(root) })
+		fyne.Do(func() { ui.dirLabel.SetText(root) })
 		cfg := loadConfig()
 		cfg.WatchDir = root
 		saveConfig(cfg)
-		a.startWatcher(root)
+		watcher.Start(root)
 		bus.Publish(WatchDirChanged{Dir: root})
 
-		a.mu.Lock()
-		firstRun := a.firstRun
-		a.mu.Unlock()
-		if firstRun && !isStartupEnabled() {
-			a.mu.Lock()
-			a.firstRun = false
-			a.mu.Unlock()
+		if s.firstRun && !isStartupEnabled() {
+			s.firstRun = false
 			bus.Publish(StartupToggleRequested{})
 		}
 	})
 	Subscribe(bus, func(e WatchDirInvalid) {
-		fyne.Do(func() { dialog.ShowError(e.Err, a.window) })
+		fyne.Do(func() { dialog.ShowError(e.Err, ui.window) })
 	})
 }

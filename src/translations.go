@@ -229,19 +229,3 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyTrayQuit:              "Выйти",
 	},
 }
-
-func (a *App) T(key TranslationKey) string {
-	a.mu.Lock()
-	lang := a.lang
-	a.mu.Unlock()
-	if t, ok := translations[lang]; ok {
-		if s, ok := t[key]; ok {
-			return s
-		}
-	}
-	// fallback to English
-	if s, ok := translations[LangEN][key]; ok {
-		return s
-	}
-	return string(key)
-}
