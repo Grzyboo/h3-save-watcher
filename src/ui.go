@@ -15,9 +15,12 @@ import (
 	"fyne.io/systray"
 )
 
+const minWindowWidth = 600
+
 // appBackground wraps content in the application's dark background.
 func appBackground(c fyne.CanvasObject) fyne.CanvasObject {
 	bg := canvas.NewRectangle(color.NRGBA{R: 23, G: 23, B: 23, A: 255})
+	bg.SetMinSize(fyne.NewSize(minWindowWidth, 0))
 	return container.NewStack(bg, c)
 }
 
@@ -85,6 +88,6 @@ func setupTray(s *State, w fyne.Window, fyneApp fyne.App) {
 func newFyneApp(title string) (fyne.App, fyne.Window) {
 	fyneApp := app.New()
 	w := fyneApp.NewWindow(title)
-	w.Resize(fyne.NewSize(700, 450))
+	w.Resize(fyne.NewSize(minWindowWidth, 450))
 	return fyneApp, w
 }
