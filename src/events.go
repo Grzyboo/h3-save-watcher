@@ -176,13 +176,31 @@ type WatchDirInvalid struct {
 // relabels widgets, refreshes the log list.
 type LanguageChanged struct{ Lang Lang }
 
-// StartupToggleRequested is emitted when the startup button is clicked.
-type StartupToggleRequested struct{}
+// StartupSetRequested is the intent from the autostart checkbox (settings
+// panel) to enable or disable system startup.
+type StartupSetRequested struct{ Enabled bool }
 
-// StartupEnabled / StartupDisabled are facts; they relabel the button and
-// show an info dialog.
+// StartupEnabled / StartupDisabled are facts; they sync the autostart
+// checkbox state.
 type StartupEnabled struct{}
 type StartupDisabled struct{}
+
+// ---------------------------------------------------------------------------
+// Onboarding
+// ---------------------------------------------------------------------------
+
+// OnboardingFinishRequested is the intent from the wizard's last "next >"
+// button; the handler validates the dir, persists config, applies autostart
+// and starts the watcher.
+type OnboardingFinishRequested struct {
+	Dir       string
+	Lang      Lang
+	Autostart bool
+}
+
+// OnboardingFinished is the fact after a successful onboarding finish; the
+// window content swaps from the wizard to the main view.
+type OnboardingFinished struct{ Dir string }
 
 // AppUpdated is emitted once at startup after a successful self-update.
 type AppUpdated struct{ Version string }

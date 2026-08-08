@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
 	"log"
 
@@ -9,26 +8,24 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-func buildUI(bus *Bus, s *State, ui *uiRefs, logs *logStore, w fyne.Window) {
-	ui.dirLabel = widget.NewLabel(s.T(KeyNoDirectorySelected))
-	ui.dirLabel.Wrapping = fyne.TextWrapBreak
+// appBackground wraps content in the application's dark background.
+func appBackground(c fyne.CanvasObject) fyne.CanvasObject {
+	bg := canvas.NewRectangle(color.NRGBA{R: 23, G: 23, B: 23, A: 255})
+	return container.NewStack(bg, c)
+}
 
-	ui.browseBtn = widget.NewButtonWithIcon(s.T(KeyChooseDirectory), theme.FolderOpenIcon(), func() {
-		d := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
-			if err != nil || uri == nil {
-				return
-			}
-			bus.Publish(WatchDirChangeRequested{Dir: uri.Path()})
-		}, w)
-		d.Resize(fyne.NewSize(800, 600))
-		d.Show()
-	})
+// buildUI builds the main view and returns it without showing it — main
+// decides whether the window shows the main view or the onboarding wizard.
+func buildUI(bus *Bus, s *State, ui *uiRefs, logs *logStore, w fyne.Window) fyne.CanvasObject {
+	ui.dirLabel = widget.NewLabel(s.T(KeyNoDirectorySelected))
+	// Truncate instead of wrap: a wrapping label's MinSize height depends on
+	// its current width, which makes the window grow on every SetContent.
+	ui.dirLabel.Truncation = fyne.TextTruncateEllipsis
 
 	logPanel := buildLogPanel(logs, s.T)
 
@@ -39,46 +36,20 @@ func buildUI(bus *Bus, s *State, ui *uiRefs, logs *logStore, w fyne.Window) {
 	dirRow := container.NewBorder(nil, nil, ui.selectedLabel, nil, ui.dirLabel)
 	dirPanel := container.NewStack(dirBg, container.NewPadded(dirRow))
 
-	btnBg := canvas.NewRectangle(color.NRGBA{R: 0, G: 0, B: 0, A: 0})
-	btnPanel := container.NewStack(btnBg, container.NewPadded(ui.browseBtn))
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
+		showSettings(bus, s, ui, w)
+	})
+	settingsBtn.Importance = widget.LowImportance
 
 	versionLabel := widget.NewLabel(appVersion)
 	versionLabel.Importance = widget.LowImportance
 
-	flagBar := container.NewHBox(
-		versionLabel,
-		makeFlagButton(flagEN, LangEN, bus),
-		makeFlagButton(flagPL, LangPL, bus),
-		makeFlagButton(flagUA, LangUA, bus),
-		makeFlagButton(flagRU, LangRU, bus),
-	)
-
-	startupBtnLabel := s.T(KeyStartupEnable)
-	if isStartupEnabled() {
-		startupBtnLabel = s.T(KeyStartupDisable)
-	}
-	ui.startupBtn = widget.NewButton(startupBtnLabel, func() {
-		bus.Publish(StartupToggleRequested{})
-	})
-	ui.startupBtn.Importance = widget.LowImportance
-
-	topBar := container.NewPadded(container.NewBorder(nil, nil, nil, btnPanel, dirPanel))
-	bottomBar := container.NewBorder(nil, nil, ui.startupBtn, flagBar)
+	topBar := container.NewPadded(container.NewBorder(nil, nil, nil, settingsBtn, dirPanel))
+	bottomBar := container.NewBorder(nil, nil, nil, versionLabel)
 	content := container.NewBorder(topBar, bottomBar, nil, nil, logPanel)
-	bg := canvas.NewRectangle(color.NRGBA{R: 23, G: 23, B: 23, A: 255})
-	w.SetContent(container.NewStack(bg, content))
-	log.Println("window content set")
-}
-
-func refreshStartupBtn(s *State, ui *uiRefs) {
-	if ui.startupBtn == nil {
-		return
-	}
-	if isStartupEnabled() {
-		ui.startupBtn.SetText(s.T(KeyStartupDisable))
-	} else {
-		ui.startupBtn.SetText(s.T(KeyStartupEnable))
-	}
+	ui.mainContent = appBackground(content)
+	log.Println("main view built")
+	return ui.mainContent
 }
 
 func setupTray(s *State, w fyne.Window, fyneApp fyne.App) {
@@ -103,39 +74,6 @@ func setupTray(s *State, w fyne.Window, fyneApp fyne.App) {
 			}),
 		))
 	}
-}
-
-func makeFlagButton(imgData []byte, lang Lang, bus *Bus) *widget.Button {
-	res := fyne.NewStaticResource("flag", imgData)
-	btn := widget.NewButtonWithIcon("", res, func() {
-		bus.Publish(LanguageChanged{Lang: lang})
-	})
-	btn.Importance = widget.LowImportance
-	return btn
-}
-
-func runAutoDiscovery(bus *Bus, s *State, w fyne.Window) {
-	go func() {
-		found := findInstallation()
-		if found != "" {
-			dialog.ShowConfirm(
-				s.T(KeyInstallationFound),
-				fmt.Sprintf(s.T(KeyInstallationFoundMsg), found),
-				func(ok bool) {
-					if ok {
-						bus.Publish(WatchDirChangeRequested{Dir: found})
-					}
-				},
-				w,
-			)
-		} else {
-			dialog.ShowInformation(
-				s.T(KeyInstallationNotFound),
-				s.T(KeyInstallationNotFoundMsg),
-				w,
-			)
-		}
-	}()
 }
 
 func newFyneApp(title string) (fyne.App, fyne.Window) {

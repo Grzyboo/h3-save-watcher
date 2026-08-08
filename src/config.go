@@ -77,6 +77,7 @@ type Config struct {
 	InstanceID          string `json:"instance_id"`
 	UpdatedToVersion    string `json:"updated_to_version,omitempty"`
 	InitialRunCompleted bool   `json:"initial_run_completed"`
+	OnboardingFinished  bool   `json:"onboarding_finished,omitempty"`
 }
 
 // ensureInstanceID generates and persists a UUID v4 if one is not already set.

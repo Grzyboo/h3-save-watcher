@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
@@ -95,9 +96,10 @@ func platformSearchRoots() []searchRoot {
 	}
 }
 
-// findInstallation searches all platform locations, collects every valid H3
-// root, and returns the one whose HotA signature files are newest.
-func findInstallation() string {
+// findAllInstallations searches all platform locations and returns every
+// valid H3 root, sorted by HotA signature file modification time (newest
+// first).
+func findAllInstallations() []string {
 	var all []string
 	for _, sr := range platformSearchRoots() {
 		if sr.recursive {
@@ -106,18 +108,10 @@ func findInstallation() string {
 			all = append(all, collectShallow(sr.path)...)
 		}
 	}
-	if len(all) == 0 {
-		return ""
-	}
-	best := all[0]
-	bestTime := hotaFilesModTime(best)
-	for _, candidate := range all[1:] {
-		if t := hotaFilesModTime(candidate); t.After(bestTime) {
-			best = candidate
-			bestTime = t
-		}
-	}
-	return best
+	sort.SliceStable(all, func(i, j int) bool {
+		return hotaFilesModTime(all[i]).After(hotaFilesModTime(all[j]))
+	})
+	return all
 }
 
 func collectShallow(dir string) []string {

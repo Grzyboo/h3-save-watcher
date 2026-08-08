@@ -50,7 +50,6 @@ func main() {
 	defer bus.Stop()
 
 	s := &State{
-		firstRun:         cfg.WatchDir == "",
 		isInitialRun:     isInitialRun,
 		lastUploadedHash: make(map[string]string),
 		sentFoldersCache: loadSentFoldersCache(),
@@ -72,6 +71,7 @@ func main() {
 	registerLanguageHandlers(bus, s, ui, logs)
 	registerStartupHandlers(bus, s, ui)
 	registerLogHandlers(bus, s, logs)
+	registerOnboardingHandlers(bus, s, ui, watcher)
 
 	up := &updater{bus: bus, watcher: watcher, sched: sched, uploads: uploads}
 	// Check for updates every hour in background — fails silently, app keeps running.
@@ -81,19 +81,27 @@ func main() {
 	up.showUpdateNotification()
 	logs.startPruner()
 
-	if cfg.WatchDir != "" {
-		if root, err := resolveH3Root(cfg.WatchDir); err == nil {
-			if root != cfg.WatchDir {
-				cfg.WatchDir = root
-				saveConfig(cfg)
+	// Onboarding decision:
+	// - no config at all -> onboarding
+	// - config with onboarding_finished -> skip
+	// - config without onboarding_finished -> skip only when a watch_dir is
+	//   already configured (existing user upgrading from an older version)
+	needsOnboarding := !cfg.OnboardingFinished && cfg.WatchDir == ""
+	if needsOnboarding {
+		ob := newOnboarding(bus, s, w)
+		w.SetContent(ob.Root())
+	} else {
+		w.SetContent(ui.mainContent)
+		if cfg.WatchDir != "" {
+			if root, err := resolveH3Root(cfg.WatchDir); err == nil {
+				if root != cfg.WatchDir {
+					cfg.WatchDir = root
+					saveConfig(cfg)
+				}
+				ui.dirLabel.SetText(root)
+				watcher.Start(root)
 			}
-			ui.dirLabel.SetText(root)
-			watcher.Start(root)
 		}
-	} else if !startInTray {
-		// First run — attempt auto-discovery after window is shown.
-		// Skip dialogs when starting in tray; user can open the window manually.
-		runAutoDiscovery(bus, s, w)
 	}
 
 	log.Println("pre-tray setup")
@@ -104,12 +112,14 @@ func main() {
 		w.Hide()
 	})
 
-	log.Println("entering event loop, startInTray:", startInTray)
-	if startInTray {
+	log.Println("entering event loop, startInTray:", startInTray, "needsOnboarding:", needsOnboarding)
+	if startInTray && !needsOnboarding {
 		w.Hide()
 		log.Println("window hidden, calling fyneApp.Run()")
 		fyneApp.Run()
 	} else {
+		// Onboarding takes precedence over a tray start: the user must
+		// finish the wizard before the main application is usable.
 		w.ShowAndRun()
 	}
 

@@ -9,42 +9,31 @@ import (
 	"fyne.io/fyne/v2/dialog"
 )
 
-// registerStartupHandlers wires the startup toggle: StartupToggleRequested
-// runs the dialog flow; the StartupEnabled/StartupDisabled facts relabel the
-// button and show the info dialog.
+// registerStartupHandlers wires the autostart checkbox: StartupSetRequested
+// applies the change right away (keeping the suspicious-path warning when
+// enabling); the StartupEnabled/Disabled facts sync the checkbox state.
+// Failures show an error dialog and revert the checkbox.
 func registerStartupHandlers(bus *Bus, s *State, ui *uiRefs) {
-	Subscribe(bus, func(e StartupToggleRequested) { startupToggleFlow(bus, s, ui) })
-	Subscribe(bus, func(e StartupEnabled) {
-		fyne.Do(func() {
-			refreshStartupBtn(s, ui)
-			dialog.ShowInformation(s.T(KeyStartupEnableTitle), s.T(KeyStartupSuccess), ui.window)
-		})
-	})
-	Subscribe(bus, func(e StartupDisabled) {
-		fyne.Do(func() {
-			refreshStartupBtn(s, ui)
-			dialog.ShowInformation(s.T(KeyStartupDisableTitle), s.T(KeyStartupRemoved), ui.window)
-		})
-	})
-}
-
-// startupToggleFlow runs the enable/disable dialog flow. It runs on the bus
-// goroutine; all UI touches are wrapped in fyne.Do.
-func startupToggleFlow(bus *Bus, s *State, ui *uiRefs) {
-	if !isStartupEnabled() {
+	Subscribe(bus, func(e StartupSetRequested) {
+		if !e.Enabled {
+			applyStartup(bus, s, ui, false)
+			return
+		}
 		// Check for suspicious path before enabling.
 		exe, err := os.Executable()
 		if err == nil {
 			exe, _ = filepath.EvalSymlinks(exe)
 		}
-		if isSuspiciousPath(exe) {
+		if err == nil && isSuspiciousPath(exe) {
 			fyne.Do(func() {
 				dialog.ShowConfirm(
 					s.T(KeyStartupWarnTitle),
 					fmt.Sprintf(s.T(KeyStartupWarnMsg), exe),
 					func(proceed bool) {
 						if proceed {
-							confirmEnableStartup(bus, s, ui)
+							applyStartup(bus, s, ui, true)
+						} else {
+							setStartupCheckSilently(ui, false)
 						}
 					},
 					ui.window,
@@ -52,44 +41,48 @@ func startupToggleFlow(bus *Bus, s *State, ui *uiRefs) {
 			})
 			return
 		}
-		confirmEnableStartup(bus, s, ui)
+		applyStartup(bus, s, ui, true)
+	})
+	Subscribe(bus, func(e StartupEnabled) {
+		fyne.Do(func() { setStartupCheckSilently(ui, true) })
+	})
+	Subscribe(bus, func(e StartupDisabled) {
+		fyne.Do(func() { setStartupCheckSilently(ui, false) })
+	})
+}
+
+// applyStartup enables or disables the autostart entry. It runs on the bus
+// goroutine or in a dialog callback; all UI touches are wrapped in fyne.Do.
+func applyStartup(bus *Bus, s *State, ui *uiRefs, enable bool) {
+	var err error
+	if enable {
+		err = enableStartup()
 	} else {
+		err = disableStartup()
+	}
+	if err != nil {
 		fyne.Do(func() {
-			dialog.ShowConfirm(
-				s.T(KeyStartupDisableTitle),
-				s.T(KeyStartupDisableConfirm),
-				func(ok bool) {
-					if !ok {
-						return
-					}
-					if err := disableStartup(); err != nil {
-						dialog.ShowError(fmt.Errorf(s.T(KeyStartupError), err), ui.window)
-						return
-					}
-					bus.Publish(StartupDisabled{})
-				},
-				ui.window,
-			)
+			dialog.ShowError(fmt.Errorf(s.T(KeyStartupError), err), ui.window)
+			setStartupCheckSilently(ui, !enable)
 		})
+		return
+	}
+	if enable {
+		bus.Publish(StartupEnabled{})
+	} else {
+		bus.Publish(StartupDisabled{})
 	}
 }
 
-func confirmEnableStartup(bus *Bus, s *State, ui *uiRefs) {
-	fyne.Do(func() {
-		dialog.ShowConfirm(
-			s.T(KeyStartupEnableTitle),
-			s.T(KeyStartupEnableConfirm),
-			func(ok bool) {
-				if !ok {
-					return
-				}
-				if err := enableStartup(); err != nil {
-					dialog.ShowError(fmt.Errorf(s.T(KeyStartupError), err), ui.window)
-					return
-				}
-				bus.Publish(StartupEnabled{})
-			},
-			ui.window,
-		)
-	})
+// setStartupCheckSilently syncs the settings autostart checkbox without
+// triggering its OnChanged (which would republish StartupSetRequested).
+// Must be called on Fyne's goroutine.
+func setStartupCheckSilently(ui *uiRefs, checked bool) {
+	if ui.startupCheck == nil {
+		return
+	}
+	handler := ui.startupCheck.OnChanged
+	ui.startupCheck.OnChanged = nil
+	ui.startupCheck.SetChecked(checked)
+	ui.startupCheck.OnChanged = handler
 }

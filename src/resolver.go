@@ -4,9 +4,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
+// isH3Root reports whether dir is a HotA installation root. Every real
+// installation ships one of these executables; looser heuristics (e.g. the
+// "HotA_" file prefix) also match installer downloads like
+// "HotA_1.8.0_setup.exe" and so would accept folders such as ~/Downloads.
 func isH3Root(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -16,11 +19,8 @@ func isH3Root(dir string) bool {
 		if e.IsDir() {
 			continue
 		}
-		n := e.Name()
-		if n == "h3hota.exe" || n == "h3hota HD.exe" || n == "HD_Launcher.exe" {
-			return true
-		}
-		if strings.HasPrefix(n, "HotA_") {
+		switch e.Name() {
+		case "h3hota.exe", "h3hota HD.exe", "HD_Launcher.exe":
 			return true
 		}
 	}
