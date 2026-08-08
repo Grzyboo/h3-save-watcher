@@ -12,14 +12,17 @@ import (
 // which is also read from Fyne's thread (log list rendering) via T, so it is
 // guarded by its own small mutex.
 type State struct {
-	watchDir          string
-	gameInfo          GameInfo
-	watchedGameFolder string
-	gamesDirWatched   bool
-	isInitialRun      bool
-	lastUploadedHash  map[string]string // keyed by fileType
-	sentFoldersCache  SentFoldersCache
-	instanceID        string
+	watchDir                      string
+	gameInfo                      GameInfo
+	watchedGameFolder             string
+	gamesDirWatched               bool
+	passwordsLoadAttempted        bool
+	backfillAllowedForNextResolve bool
+	backfillPendingFolder         string
+	initialGameResolved           bool
+	lastUploadedHash              map[string]string // keyed by fileType
+	sentFoldersCache              SentFoldersCache
+	instanceID                    string
 
 	langMu sync.RWMutex
 	lang   Lang

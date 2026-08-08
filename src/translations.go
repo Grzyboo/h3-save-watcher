@@ -45,6 +45,7 @@ const (
 	KeyLogInvalidUploadResp   TranslationKey = "log_invalid_upload_resp"
 	KeyLogServerRejected      TranslationKey = "log_server_rejected"
 	KeyLogUploaded            TranslationKey = "log_uploaded"
+	KeyLogBackfillUploaded    TranslationKey = "log_backfill_uploaded"
 	KeyLogWatcherInitError    TranslationKey = "log_watcher_init_error"
 	KeyLogWatchError          TranslationKey = "log_watch_error"
 	KeyLogWatcherError        TranslationKey = "log_watcher_error"
@@ -98,6 +99,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogInvalidUploadResp:   "upload %s: invalid upload response",
 		KeyLogServerRejected:      "upload %s: server rejected file",
 		KeyLogUploaded:            "uploaded %s",
+		KeyLogBackfillUploaded:    "[backfill] uploaded %s",
 		KeyLogWatcherInitError:    "watcher init error: %v",
 		KeyLogWatchError:          "watch error: %v",
 		KeyLogWatcherError:        "watcher error: %v",
@@ -146,6 +148,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogInvalidUploadResp:   "przesyłanie %s: nieprawidłowa odpowiedź serwera",
 		KeyLogServerRejected:      "przesyłanie %s: serwer odrzucił plik",
 		KeyLogUploaded:            "przesłano %s",
+		KeyLogBackfillUploaded:    "[backfill] przesłano %s",
 		KeyLogWatcherInitError:    "błąd inicjalizacji obserwatora: %v",
 		KeyLogWatchError:          "błąd obserwowania: %v",
 		KeyLogWatcherError:        "błąd obserwatora: %v",
@@ -194,6 +197,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogInvalidUploadResp:   "завантаження %s: невірна відповідь завантаження",
 		KeyLogServerRejected:      "завантаження %s: сервер відхилив файл",
 		KeyLogUploaded:            "завантажено %s",
+		KeyLogBackfillUploaded:    "[backfill] завантажено %s",
 		KeyLogWatcherInitError:    "помилка ініціалізації спостерігача: %v",
 		KeyLogWatchError:          "помилка спостереження: %v",
 		KeyLogWatcherError:        "помилка спостерігача: %v",
@@ -242,6 +246,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogInvalidUploadResp:   "загрузка %s: неверный ответ загрузки",
 		KeyLogServerRejected:      "загрузка %s: сервер отклонил файл",
 		KeyLogUploaded:            "загружено %s",
+		KeyLogBackfillUploaded:    "[backfill] загружено %s",
 		KeyLogWatcherInitError:    "ошибка инициализации наблюдателя: %v",
 		KeyLogWatchError:          "ошибка наблюдения: %v",
 		KeyLogWatcherError:        "ошибка наблюдателя: %v",

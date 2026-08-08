@@ -72,12 +72,11 @@ func migrateLegacyConfigAndCache() {
 
 // Config holds persisted application state.
 type Config struct {
-	WatchDir            string `json:"watch_dir"`
-	Language            string `json:"language"`
-	InstanceID          string `json:"instance_id"`
-	UpdatedToVersion    string `json:"updated_to_version,omitempty"`
-	InitialRunCompleted bool   `json:"initial_run_completed"`
-	OnboardingFinished  bool   `json:"onboarding_finished,omitempty"`
+	WatchDir           string `json:"watch_dir"`
+	Language           string `json:"language"`
+	InstanceID         string `json:"instance_id"`
+	UpdatedToVersion   string `json:"updated_to_version,omitempty"`
+	OnboardingFinished bool   `json:"onboarding_finished,omitempty"`
 }
 
 // ensureInstanceID generates and persists a UUID v4 if one is not already set.

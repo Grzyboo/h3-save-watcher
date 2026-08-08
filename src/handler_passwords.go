@@ -10,6 +10,9 @@ func registerPasswordsHandlers(bus *Bus, s *State) {
 	// handle reads and parses passwords.txt at path, updates gameInfo and
 	// publishes the outcome. Runs on the bus goroutine.
 	handle := func(path string) {
+		initial := !s.passwordsLoadAttempted
+		s.passwordsLoadAttempted = true
+
 		data, err := os.ReadFile(path)
 		if err != nil {
 			s.gameInfo = GameInfo{}
@@ -34,7 +37,7 @@ func registerPasswordsHandlers(bus *Bus, s *State) {
 			s.gameInfo.Password != info.Password
 		s.gameInfo = info
 
-		bus.Publish(PasswordsLoaded{Info: info, Changed: changed})
+		bus.Publish(PasswordsLoaded{Info: info, Changed: changed, Initial: initial})
 	}
 
 	Subscribe(bus, func(e PasswordsCreated) { handle(e.Path) })
