@@ -16,6 +16,9 @@ func looksLikeH3(name string) bool {
 	if strings.Contains(low, "hota") {
 		return true
 	}
+	if strings.Contains(low, "heros") {
+		return true
+	}
 	if strings.Contains(low, "heroes of might and magic") && has3 {
 		return true
 	}
@@ -73,6 +76,10 @@ func platformSearchRoots() []searchRoot {
 			drive := string(letter) + `:\`
 			if _, err := os.Stat(drive); err == nil {
 				roots = append(roots, searchRoot{path: drive, recursive: false})
+				gogGames := filepath.Join(drive, "GOG Games")
+				if info, err := os.Stat(gogGames); err == nil && info.IsDir() {
+					roots = append(roots, searchRoot{path: gogGames, recursive: false})
+				}
 			}
 		}
 		return roots
