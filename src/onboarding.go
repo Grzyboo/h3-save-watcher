@@ -10,6 +10,39 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+type installation struct {
+	path   string
+	manual bool
+}
+
+type installationListLayout struct {
+	length func() int
+}
+
+func (l *installationListLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) == 0 {
+		return
+	}
+	objects[0].Move(fyne.NewPos(0, 0))
+	objects[0].Resize(size)
+}
+
+func (l *installationListLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	if len(objects) == 0 {
+		return fyne.Size{}
+	}
+
+	minSize := objects[0].MinSize()
+	count := l.length()
+	if count == 0 {
+		minSize.Height = 0
+		return minSize
+	}
+
+	minSize.Height = minSize.Height*float32(count) + theme.Padding()*float32(count-1)
+	return minSize
+}
+
 // onboarding is the first-run setup wizard: language selection, game
 // directory selection and misc settings. Nothing is persisted until the
 // wizard finishes (OnboardingFinishRequested), so an app restart (e.g. after
@@ -26,13 +59,13 @@ type onboarding struct {
 	scanID        int
 	lang          Lang
 	dir           string
-	installations []string
-	autoDetected  bool
+	installations []installation
 	autostart     bool
 
 	// Panel 2 widget refs — valid only while panel == 2.
-	installList *widget.List
-	infoLabel   *widget.Label
+	installList    *widget.List
+	installSection *fyne.Container
+	infoLabel      *widget.Label
 }
 
 func newOnboarding(bus *Bus, s *State, w fyne.Window) *onboarding {
@@ -46,6 +79,13 @@ func (o *onboarding) Root() fyne.CanvasObject {
 
 func (o *onboarding) show(c fyne.CanvasObject) {
 	o.win.SetContent(c)
+}
+
+func newPanelCounter(text string) *widget.Label {
+	counter := widget.NewLabel(text)
+	counter.Alignment = fyne.TextAlignTrailing
+	counter.Importance = widget.HighImportance
+	return counter
 }
 
 // --- panel 1: language selection ---
@@ -76,9 +116,10 @@ func (o *onboarding) panel1() fyne.CanvasObject {
 		flags.Select(o.lang)
 	}
 
-	body := container.NewCenter(container.NewVBox(title, container.NewCenter(flags.Container)))
+	top := container.NewPadded(container.NewStack(title, newPanelCounter("1/3")))
+	body := container.NewCenter(flags.Container)
 	bottom := container.NewPadded(container.NewBorder(nil, nil, nil, next))
-	return appBackground(container.NewBorder(nil, bottom, nil, nil, body))
+	return appBackground(container.NewBorder(top, bottom, nil, nil, body))
 }
 
 // --- panel 2: game directory selection ---
@@ -102,13 +143,18 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		func() fyne.CanvasObject { return widget.NewLabel("") },
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < len(o.installations) {
-				obj.(*widget.Label).SetText(o.installations[id])
+				installation := o.installations[id]
+				prefix := o.s.T(KeyAutoDetected)
+				if installation.manual {
+					prefix = o.s.T(KeyManuallyAdded)
+				}
+				obj.(*widget.Label).SetText(prefix + installation.path)
 			}
 		},
 	)
 	o.installList.OnSelected = func(id widget.ListItemID) {
 		if id < len(o.installations) {
-			o.dir = o.installations[id]
+			o.dir = o.installations[id].path
 			next.Enable()
 		}
 	}
@@ -123,11 +169,15 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		d.Resize(fyne.NewSize(800, 600))
 		d.Show()
 	})
+	listContainer := container.New(
+		&installationListLayout{length: func() int { return len(o.installations) }},
+		o.installList,
+	)
+	o.installSection = container.NewVBox(listContainer, container.NewCenter(addBtn))
 
 	prev := widget.NewButton(o.s.T(KeyPrevious), func() {
 		// Leaving the panel backwards forgets everything done here.
 		o.installations = nil
-		o.autoDetected = false
 		o.dir = ""
 		o.show(o.panel1())
 	})
@@ -137,12 +187,10 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		next.Disable()
 	}
 
-	top := container.NewPadded(container.NewVBox(title, o.infoLabel))
-	bottom := container.NewPadded(container.NewVBox(
-		container.NewHBox(addBtn),
-		container.NewBorder(nil, nil, prev, next),
-	))
-	content := container.NewBorder(top, bottom, nil, nil, container.NewPadded(o.installList))
+	heading := container.NewVBox(title, o.infoLabel)
+	top := container.NewPadded(container.NewStack(heading, newPanelCounter("2/3")))
+	bottom := container.NewPadded(container.NewBorder(nil, nil, prev, next))
+	content := container.NewBorder(top, bottom, nil, nil, container.NewPadded(o.installSection))
 
 	if o.installations == nil {
 		// First visit — scan for installations in the background.
@@ -151,8 +199,8 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 	} else {
 		// Re-entering from panel 3 — restore the previous scan + selection.
 		o.refreshInfoLabel()
-		for i, p := range o.installations {
-			if p == o.dir {
+		for i, installation := range o.installations {
+			if installation.path == o.dir {
 				o.installList.Select(i)
 				break
 			}
@@ -162,21 +210,20 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 	return appBackground(content)
 }
 
-// refreshInfoLabel shows the detection info line matching the current state:
-// "Automatically detected:" when the scan found installations, the not-found
-// message when it found nothing, and hides the line when only manually added
-// folders are present.
+func (o *onboarding) refreshInstallList() {
+	o.installList.Refresh()
+	o.installSection.Refresh()
+}
+
+// refreshInfoLabel shows the not-found message when the list is empty and
+// hides it once an installation is available.
 func (o *onboarding) refreshInfoLabel() {
-	switch {
-	case o.autoDetected:
-		o.infoLabel.SetText(o.s.T(KeyAutoDetected))
-		o.infoLabel.Show()
-	case len(o.installations) == 0:
+	if len(o.installations) == 0 {
 		o.infoLabel.SetText(o.s.T(KeyNoInstallationsFound))
 		o.infoLabel.Show()
-	default:
-		o.infoLabel.Hide()
+		return
 	}
+	o.infoLabel.Hide()
 }
 
 // detect scans the filesystem for H3 installations and merges the results
@@ -188,13 +235,14 @@ func (o *onboarding) detect(id int) {
 			return
 		}
 		for _, p := range found {
-			if !slices.Contains(o.installations, p) {
-				o.installations = append(o.installations, p)
+			if !slices.ContainsFunc(o.installations, func(installation installation) bool {
+				return installation.path == p
+			}) {
+				o.installations = append(o.installations, installation{path: p})
 			}
 		}
-		o.autoDetected = len(found) > 0
 		o.refreshInfoLabel()
-		o.installList.Refresh()
+		o.refreshInstallList()
 	})
 }
 
@@ -206,22 +254,26 @@ func (o *onboarding) addInstallation(path string) {
 		dialog.ShowError(err, o.win)
 		return
 	}
-	for i, p := range o.installations {
-		if p == root {
+	for i, installation := range o.installations {
+		if installation.path == root {
 			o.installList.Select(i)
 			return
 		}
 	}
-	o.installations = append(o.installations, root)
+	o.installations = append([]installation{{path: root, manual: true}}, o.installations...)
 	o.refreshInfoLabel()
-	o.installList.Refresh()
-	o.installList.Select(len(o.installations) - 1)
+	o.refreshInstallList()
+	o.installList.Select(0)
 }
 
 // --- panel 3: misc settings ---
 
 func (o *onboarding) panel3() fyne.CanvasObject {
 	o.panel = 3
+
+	title := widget.NewLabel(o.s.T(KeyOtherSettings))
+	title.Alignment = fyne.TextAlignCenter
+	title.Importance = widget.HighImportance
 
 	check := widget.NewCheck(o.s.T(KeyAddToAutostart), func(checked bool) { o.autostart = checked })
 	check.SetChecked(o.autostart)
@@ -239,7 +291,8 @@ func (o *onboarding) panel3() fyne.CanvasObject {
 	})
 	next.Importance = widget.HighImportance
 
+	top := container.NewPadded(container.NewStack(title, newPanelCounter("3/3")))
 	body := container.NewCenter(container.NewVBox(check, desc))
 	bottom := container.NewPadded(container.NewBorder(nil, nil, prev, next))
-	return appBackground(container.NewBorder(nil, bottom, nil, nil, body))
+	return appBackground(container.NewBorder(top, bottom, nil, nil, body))
 }

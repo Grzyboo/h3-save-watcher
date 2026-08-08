@@ -26,7 +26,9 @@ const (
 	KeyLanguage             TranslationKey = "language"
 	KeyHotAFolder           TranslationKey = "hota_folder"
 	KeyChooseInstallation   TranslationKey = "choose_installation"
+	KeyOtherSettings        TranslationKey = "other_settings"
 	KeyAutoDetected         TranslationKey = "auto_detected"
+	KeyManuallyAdded        TranslationKey = "manually_added"
 	KeyAddInstallation      TranslationKey = "add_installation"
 	KeyNoInstallationsFound TranslationKey = "no_installations_found"
 	KeyAddToAutostart       TranslationKey = "add_to_autostart"
@@ -78,7 +80,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLanguage:             "Language",
 		KeyHotAFolder:           "HotA folder",
 		KeyChooseInstallation:   "Choose Horn of the Abyss installation",
-		KeyAutoDetected:         "Automatically detected:",
+		KeyOtherSettings:        "Other settings",
+		KeyAutoDetected:         "[autodetected] ",
+		KeyManuallyAdded:        "[added manually] ",
 		KeyAddInstallation:      "Add HotA installation",
 		KeyNoInstallationsFound: "Could not find HOMM3:HotA installed on the system. Please add HotA folder.",
 		KeyAddToAutostart:       "Add to autostart",
@@ -124,7 +128,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLanguage:             "Język",
 		KeyHotAFolder:           "Folder HotA",
 		KeyChooseInstallation:   "Wybierz instalację Horn of the Abyss",
-		KeyAutoDetected:         "Wykryto automatycznie:",
+		KeyOtherSettings:        "Inne ustawienia",
+		KeyAutoDetected:         "[wykryto automatycznie] ",
+		KeyManuallyAdded:        "[dodano ręcznie] ",
 		KeyAddInstallation:      "Dodaj instalację HotA",
 		KeyNoInstallationsFound: "Nie znaleziono zainstalowanego HOMM3:HotA w systemie. Dodaj folder HotA.",
 		KeyAddToAutostart:       "Dodaj do autostartu",
@@ -170,7 +176,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLanguage:             "Мова",
 		KeyHotAFolder:           "Папка HotA",
 		KeyChooseInstallation:   "Оберіть встановлення Horn of the Abyss",
-		KeyAutoDetected:         "Виявлено автоматично:",
+		KeyOtherSettings:        "Інші налаштування",
+		KeyAutoDetected:         "[виявлено автоматично] ",
+		KeyManuallyAdded:        "[додано вручну] ",
 		KeyAddInstallation:      "Додати встановлення HotA",
 		KeyNoInstallationsFound: "Не вдалося знайти встановлену HOMM3:HotA у системі. Будь ласка, додайте папку HotA.",
 		KeyAddToAutostart:       "Додати до автозапуску",
@@ -216,7 +224,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLanguage:             "Язык",
 		KeyHotAFolder:           "Папка HotA",
 		KeyChooseInstallation:   "Выберите установку Horn of the Abyss",
-		KeyAutoDetected:         "Обнаружено автоматически:",
+		KeyOtherSettings:        "Другие настройки",
+		KeyAutoDetected:         "[обнаружено автоматически] ",
+		KeyManuallyAdded:        "[добавлено вручную] ",
 		KeyAddInstallation:      "Добавить установку HotA",
 		KeyNoInstallationsFound: "Не удалось найти установленную HOMM3:HotA в системе. Пожалуйста, добавьте папку HotA.",
 		KeyAddToAutostart:       "Добавить в автозапуск",
