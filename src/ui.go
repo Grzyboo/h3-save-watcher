@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"log"
+	"runtime"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -11,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"fyne.io/systray"
 )
 
 // appBackground wraps content in the application's dark background.
@@ -73,6 +75,10 @@ func setupTray(s *State, w fyne.Window, fyneApp fyne.App) {
 				})
 			}),
 		))
+		if runtime.GOOS == "windows" {
+			// Windows does not derive the tray tooltip from the application title.
+			fyneApp.Lifecycle().SetOnStarted(func() { systray.SetTooltip(appName) })
+		}
 	}
 }
 
