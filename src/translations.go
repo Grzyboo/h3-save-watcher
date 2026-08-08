@@ -31,6 +31,9 @@ const (
 	KeyManuallyAdded        TranslationKey = "manually_added"
 	KeyAddInstallation      TranslationKey = "add_installation"
 	KeyNoInstallationsFound TranslationKey = "no_installations_found"
+	KeyInstallHintEmpty     TranslationKey = "installation_hint_empty"
+	KeyInstallHintOne       TranslationKey = "installation_hint_one"
+	KeyInstallHintMany      TranslationKey = "installation_hint_many"
 	KeyAddToAutostart       TranslationKey = "add_to_autostart"
 	KeyAutostartDescription TranslationKey = "autostart_description"
 	KeyOther                TranslationKey = "other"
@@ -86,6 +89,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyManuallyAdded:        "[added manually] ",
 		KeyAddInstallation:      "Add HotA installation",
 		KeyNoInstallationsFound: "Could not automatically find HOMM3:HotA installed on the system - please add HotA folder.\nThe application will reject any non-hota folder.",
+		KeyInstallHintEmpty:     "add a hota installation folder to continue",
+		KeyInstallHintOne:       "select the installation above the button or add another one",
+		KeyInstallHintMany:      "select one of the installations from the list above to continue",
 		KeyAddToAutostart:       "Add to autostart",
 		KeyAutostartDescription: "The application will run on system startup",
 		KeyOther:                "Other",
@@ -135,6 +141,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyManuallyAdded:        "[dodano ręcznie] ",
 		KeyAddInstallation:      "Dodaj instalację HotA",
 		KeyNoInstallationsFound: "Nie udało się automatycznie znaleźć zainstalowanego HOMM3:HotA w systemie - dodaj folder HotA.\nAplikacja odrzuci każdy folder, który nie jest folderem HotA.",
+		KeyInstallHintEmpty:     "dodaj folder instalacji HotA, aby kontynuować",
+		KeyInstallHintOne:       "wybierz instalację powyżej przycisku lub dodaj kolejną",
+		KeyInstallHintMany:      "wybierz jedną z instalacji z listy powyżej, aby kontynuować",
 		KeyAddToAutostart:       "Dodaj do autostartu",
 		KeyAutostartDescription: "Aplikacja będzie uruchamiana przy starcie systemu",
 		KeyOther:                "Inne",
@@ -184,6 +193,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyManuallyAdded:        "[додано вручну] ",
 		KeyAddInstallation:      "Додати встановлення HotA",
 		KeyNoInstallationsFound: "Не вдалося автоматично знайти встановлену HOMM3:HotA у системі - додайте папку HotA.\nПрограма відхилить будь-яку папку, яка не є папкою HotA.",
+		KeyInstallHintEmpty:     "додайте папку встановлення HotA, щоб продовжити",
+		KeyInstallHintOne:       "виберіть встановлення над кнопкою або додайте ще одне",
+		KeyInstallHintMany:      "виберіть одне зі встановлень зі списку вище, щоб продовжити",
 		KeyAddToAutostart:       "Додати до автозапуску",
 		KeyAutostartDescription: "Програма запускатиметься при старті системи",
 		KeyOther:                "Інше",
@@ -233,6 +245,9 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyManuallyAdded:        "[добавлено вручную] ",
 		KeyAddInstallation:      "Добавить установку HotA",
 		KeyNoInstallationsFound: "Не удалось автоматически найти установленную HOMM3:HotA в системе - добавьте папку HotA.\nПриложение отклонит любую папку, которая не является папкой HotA.",
+		KeyInstallHintEmpty:     "добавьте папку установки HotA, чтобы продолжить",
+		KeyInstallHintOne:       "выберите установку над кнопкой или добавьте еще одну",
+		KeyInstallHintMany:      "выберите одну из установок в списке выше, чтобы продолжить",
 		KeyAddToAutostart:       "Добавить в автозапуск",
 		KeyAutostartDescription: "Приложение будет запускаться при старте системы",
 		KeyOther:                "Прочее",

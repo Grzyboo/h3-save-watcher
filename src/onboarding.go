@@ -66,6 +66,8 @@ type onboarding struct {
 	installList    *widget.List
 	installSection *fyne.Container
 	infoLabel      *widget.Label
+	selectionHint  *widget.Label
+	nextButton     *widget.Button
 }
 
 func newOnboarding(bus *Bus, s *State, w fyne.Window) *onboarding {
@@ -137,7 +139,17 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 	o.infoLabel.Truncation = fyne.TextTruncateEllipsis
 	o.infoLabel.Hide()
 
-	var next *widget.Button
+	o.selectionHint = widget.NewLabel("")
+	o.selectionHint.Alignment = fyne.TextAlignCenter
+	o.selectionHint.Importance = widget.DangerImportance
+	o.selectionHint.Hide()
+
+	o.nextButton = widget.NewButton(o.s.T(KeyNext), func() { o.show(o.panel3()) })
+	o.nextButton.Importance = widget.HighImportance
+	if o.dir == "" {
+		o.nextButton.Disable()
+	}
+
 	o.installList = widget.NewList(
 		func() int { return len(o.installations) },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
@@ -155,7 +167,8 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 	o.installList.OnSelected = func(id widget.ListItemID) {
 		if id < len(o.installations) {
 			o.dir = o.installations[id].path
-			next.Enable()
+			o.nextButton.Enable()
+			o.refreshSelectionHint()
 		}
 	}
 
@@ -173,7 +186,11 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		&installationListLayout{length: func() int { return len(o.installations) }},
 		o.installList,
 	)
-	o.installSection = container.NewVBox(listContainer, container.NewCenter(addBtn))
+	o.installSection = container.NewVBox(
+		listContainer,
+		container.NewCenter(addBtn),
+		container.NewCenter(o.selectionHint),
+	)
 
 	prev := widget.NewButton(o.s.T(KeyPrevious), func() {
 		// Leaving the panel backwards forgets everything done here.
@@ -181,15 +198,9 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		o.dir = ""
 		o.show(o.panel1())
 	})
-	next = widget.NewButton(o.s.T(KeyNext), func() { o.show(o.panel3()) })
-	next.Importance = widget.HighImportance
-	if o.dir == "" {
-		next.Disable()
-	}
-
 	heading := container.NewVBox(title, o.infoLabel)
 	top := container.NewPadded(container.NewStack(heading, newPanelCounter("2/3")))
-	bottom := container.NewPadded(container.NewBorder(nil, nil, prev, next))
+	bottom := container.NewPadded(container.NewBorder(nil, nil, prev, o.nextButton))
 	content := container.NewBorder(top, bottom, nil, nil, container.NewPadded(o.installSection))
 
 	if o.installations == nil {
@@ -206,6 +217,7 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 			}
 		}
 	}
+	o.refreshSelectionHint()
 
 	return appBackground(content)
 }
@@ -213,6 +225,27 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 func (o *onboarding) refreshInstallList() {
 	o.installList.Refresh()
 	o.installSection.Refresh()
+	o.refreshSelectionHint()
+}
+
+func (o *onboarding) refreshSelectionHint() {
+	if o.nextButton == nil || o.selectionHint == nil {
+		return
+	}
+	if !o.nextButton.Disabled() {
+		o.selectionHint.Hide()
+		return
+	}
+
+	key := KeyInstallHintMany
+	switch len(o.installations) {
+	case 0:
+		key = KeyInstallHintEmpty
+	case 1:
+		key = KeyInstallHintOne
+	}
+	o.selectionHint.SetText(o.s.T(key))
+	o.selectionHint.Show()
 }
 
 // refreshInfoLabel shows the not-found message when the list is empty and
