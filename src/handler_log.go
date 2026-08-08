@@ -31,8 +31,8 @@ func registerLogHandlers(bus *Bus, s *State, logs *logStore) {
 	})
 
 	Subscribe(bus, func(e PasswordsLoaded) {
-		if e.Changed {
-			logf(true, KeyLogPasswordsLoaded, e.Info.PlayerName, e.Info.OpponentName)
+		if !e.Initial && e.Changed {
+			logf(true, KeyLogNewGameDetected, e.Info.PlayerName, e.Info.OpponentName)
 		}
 	})
 

@@ -53,7 +53,7 @@ const (
 	KeyLogUpdated             TranslationKey = "log_updated"
 	KeyLogPasswordsReadError  TranslationKey = "log_passwords_read_error"
 	KeyLogPasswordsParseError TranslationKey = "log_passwords_parse_error"
-	KeyLogPasswordsLoaded     TranslationKey = "log_passwords_loaded"
+	KeyLogNewGameDetected     TranslationKey = "log_new_game_detected"
 	KeyLogWatchingWaiting     TranslationKey = "log_watching_waiting"
 
 	// Startup
@@ -107,7 +107,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:             "The application was updated to version: %s",
 		KeyLogPasswordsReadError:  "passwords.txt: read error: %v",
 		KeyLogPasswordsParseError: "passwords.txt: parse error: %v",
-		KeyLogPasswordsLoaded:     "passwords.txt: game detected: %s vs %s",
+		KeyLogNewGameDetected:     "detected new game: %s vs %s",
 		KeyLogWatchingWaiting:     "watching files - waiting for passwords.txt (start or join a game)",
 
 		KeyStartupError:     "Startup registration failed: %v",
@@ -156,7 +156,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:             "Aplikacja została zaktualizowana do wersji: %s",
 		KeyLogPasswordsReadError:  "passwords.txt: błąd odczytu: %v",
 		KeyLogPasswordsParseError: "passwords.txt: błąd parsowania: %v",
-		KeyLogPasswordsLoaded:     "passwords.txt: wykryto grę: %s vs %s",
+		KeyLogNewGameDetected:     "wykryto nową grę: %s vs %s",
 		KeyLogWatchingWaiting:     "obserwowanie plików - oczekiwanie na passwords.txt (rozpocznij lub dołącz do gry)",
 
 		KeyStartupError:     "Błąd rejestracji autostartu: %v",
@@ -205,7 +205,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:             "Програму оновлено до версії: %s",
 		KeyLogPasswordsReadError:  "passwords.txt: помилка читання: %v",
 		KeyLogPasswordsParseError: "passwords.txt: помилка парсингу: %v",
-		KeyLogPasswordsLoaded:     "passwords.txt: виявлено гру: %s vs %s",
+		KeyLogNewGameDetected:     "виявлено нову гру: %s проти %s",
 		KeyLogWatchingWaiting:     "спостереження за файлами - очікування на passwords.txt (почніть або приєднайтесь до гри)",
 
 		KeyStartupError:     "Помилка реєстрації автозапуску: %v",
@@ -254,7 +254,7 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyLogUpdated:             "Приложение обновлено до версии: %s",
 		KeyLogPasswordsReadError:  "passwords.txt: ошибка чтения: %v",
 		KeyLogPasswordsParseError: "passwords.txt: ошибка разбора: %v",
-		KeyLogPasswordsLoaded:     "passwords.txt: обнаружена игра: %s vs %s",
+		KeyLogNewGameDetected:     "обнаружена новая игра: %s против %s",
 		KeyLogWatchingWaiting:     "наблюдение за файлами - ожидание passwords.txt (начните или присоединитесь к игре)",
 
 		KeyStartupError:     "Ошибка регистрации автозапуска: %v",
