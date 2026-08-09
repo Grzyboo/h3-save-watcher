@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -95,17 +94,43 @@ func (s *gameFolderScheduler) stop() {
 }
 
 // registerGameFolderHandlers wires the game-folder pipeline: the Games dir
-// appearing/disappearing at runtime, and game-folder resolution (5s debounce
-// after passwords load, 60s retry loop, watch switch + initial scan on
-// success).
+// appearing/disappearing at runtime, game-folder resolution (5s debounce after
+// passwords load, 60s retry loop), and deferred backfill on the first end-turn
+// event for the initial game of this application run.
 func registerGameFolderHandlers(bus *Bus, s *State, w *Watcher, sched *gameFolderScheduler) {
 	Subscribe(bus, func(e GamesDirAppeared) { onGamesDirAppeared(bus, s, w, e.Dir) })
 	Subscribe(bus, func(e GamesDirRemoved) { onGamesDirRemoved(s, w) })
 	Subscribe(bus, func(e PasswordsLoaded) {
+		if e.Initial {
+			s.backfillAllowedForNextResolve = true
+		} else if e.Changed || s.initialGameResolved {
+			s.backfillAllowedForNextResolve = false
+		}
+		if !e.Initial && e.Changed {
+			// A changed passwords entry represents a game started after this
+			// application run began. It must not backfill the new game.
+			s.backfillPendingFolder = ""
+		}
 		sched.schedule(gameFolderDebounceDelay, func() { bus.Publish(GameFolderResolveRequested{}) })
 	})
 	Subscribe(bus, func(e GameFolderResolveRequested) { resolveAndWatchGameFolder(bus, s, sched) })
 	Subscribe(bus, func(e GameFolderResolved) { switchGameFolder(bus, s, w, e.Folder) })
+	Subscribe(bus, func(e TurnEndSaveDetected) {
+		if e.Backfill || s.backfillPendingFolder == "" {
+			return
+		}
+
+		pendingFolder, _ := filepath.Abs(s.backfillPendingFolder)
+		eventFolder, _ := filepath.Abs(filepath.Dir(e.Path))
+		if pendingFolder != eventFolder {
+			return
+		}
+
+		// Clear before publishing scan events so none of those events can
+		// trigger a second backfill.
+		s.backfillPendingFolder = ""
+		backfillExistingGameFolderFiles(bus, s, pendingFolder, e.Path)
+	})
 	Subscribe(bus, func(e GameFolderNotFound) { log.Printf("game folder not found: %v", e.Err) })
 
 	// A watcher (re)start resets all watch state. WatchStarted is published
@@ -113,6 +138,7 @@ func registerGameFolderHandlers(bus *Bus, s *State, w *Watcher, sched *gameFolde
 	Subscribe(bus, func(e WatchStarted) {
 		s.watchDir = e.Dir
 		s.watchedGameFolder = ""
+		s.backfillPendingFolder = ""
 		s.gamesDirWatched = e.GamesDirWatched
 		sched.stop()
 	})
@@ -172,11 +198,11 @@ func resolveAndWatchGameFolder(bus *Bus, s *State, sched *gameFolderScheduler) {
 }
 
 // switchGameFolder removes the old game folder watch and starts watching the
-// new one, then runs the initial scan.
+// new one. The first resolved folder of the application run is backfilled
+// lazily when its first end-turn file is detected.
 func switchGameFolder(bus *Bus, s *State, w *Watcher, folder string) {
 	oldFolder := s.watchedGameFolder
-	s.watchedGameFolder = folder
-	w.SetGameFolder(folder)
+	initialFolder := !s.initialGameResolved
 
 	if oldFolder != "" && oldFolder != folder {
 		w.RemoveDir(oldFolder)
@@ -187,28 +213,37 @@ func switchGameFolder(bus *Bus, s *State, w *Watcher, folder string) {
 		return
 	}
 
+	s.watchedGameFolder = folder
+	w.SetGameFolder(folder)
+	if oldFolder != folder {
+		if initialFolder && s.backfillAllowedForNextResolve {
+			s.backfillPendingFolder, _ = filepath.Abs(folder)
+		} else {
+			s.backfillPendingFolder = ""
+		}
+	}
+	if initialFolder {
+		s.initialGameResolved = true
+	}
+
 	log.Printf("watching game folder: %s", folder)
-	uploadExistingGameFolderFiles(bus, s, folder)
 }
 
-// uploadExistingGameFolderFiles scans the game folder and publishes the
-// save-detected events for files that were not sent yet, so all uploads go
-// through one code path.
-func uploadExistingGameFolderFiles(bus *Bus, s *State, folder string) {
-	// Unset initial run to send all the future files normally
-	defer func() { s.isInitialRun = false }()
-
+// backfillExistingGameFolderFiles scans the game folder and publishes
+// backfill save-detected events for files that were not sent yet. The trigger
+// file is excluded because it is already being sent through the real-time
+// path.
+func backfillExistingGameFolderFiles(bus *Bus, s *State, folder, excludePath string) {
 	entries, err := os.ReadDir(folder)
 	if err != nil {
 		// Not an upload attempt (no matching UploadStarted); the log
 		// projection still maps this to the read-error entry.
-		bus.Publish(UploadFailed{Path: folder, Kind: UploadErrRead, Err: err})
+		bus.Publish(UploadFailed{Path: folder, Kind: UploadErrRead, Err: err, Backfill: true})
 		return
 	}
 
 	absFolder, _ := filepath.Abs(folder)
-
-	var initialFiles []string
+	absExclude, _ := filepath.Abs(excludePath)
 	for _, entry := range entries {
 		if !entry.Type().IsRegular() {
 			continue
@@ -225,30 +260,16 @@ func uploadExistingGameFolderFiles(bus *Bus, s *State, folder string) {
 			continue
 		}
 
-		alreadySent := s.sentFoldersCache.hasFile(absFolder, fname)
-		if !alreadySent {
-			s.sentFoldersCache.addFile(absFolder, fname)
-			if s.isInitialRun {
-				initialFiles = append(initialFiles, fname)
-			}
+		path := filepath.Join(folder, fname)
+		absPath, _ := filepath.Abs(path)
+		if absPath == absExclude {
+			continue
 		}
-
-		if alreadySent {
+		if s.sentFoldersCache.hasFile(absFolder, fname) {
 			log.Printf("skipping already sent file: %s", fname)
 			continue
 		}
-		if s.isInitialRun {
-			log.Printf("initial run: marking file as sent without uploading: %s", fname)
-			continue
-		}
-		bus.Publish(saveDetectedEvent(filepath.Join(folder, fname), ft))
-	}
-
-	if s.isInitialRun && len(initialFiles) > 0 {
-		s.sentFoldersCache.setInfo(absFolder, fmt.Sprintf("Initial run, didn't send files: %s", strings.Join(initialFiles, ", ")))
-		if err := s.sentFoldersCache.save(); err != nil {
-			log.Printf("failed to save sent folders cache: %v", err)
-		}
+		bus.Publish(saveDetectedEvent(path, ft, true))
 	}
 }
 

@@ -4,11 +4,12 @@ go 1.24.6
 
 require (
 	fyne.io/fyne/v2 v2.7.4
+	fyne.io/systray v1.12.1
 	github.com/fsnotify/fsnotify v1.10.1
+	golang.org/x/sys v0.30.0
 )
 
 require (
-	fyne.io/systray v1.12.1 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fredbi/uri v1.1.1 // indirect
@@ -38,7 +39,6 @@ require (
 	github.com/yuin/goldmark v1.7.8 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -29,8 +29,9 @@ var watchedFiles = []struct {
 	{"Games/TURN_BEGIN.GM2", "TURN_BEGIN"},
 }
 
-// saveDetectedEvent maps a debounced save-file write to its domain event.
-func saveDetectedEvent(path, fileType string) Event {
+// saveDetectedEvent maps a debounced save-file write or backfill candidate to
+// its domain event.
+func saveDetectedEvent(path, fileType string, backfill bool) Event {
 	switch fileType {
 	case "BATTLE":
 		return BattleSaveDetected{Path: path}
@@ -39,9 +40,9 @@ func saveDetectedEvent(path, fileType string) Event {
 	case "TURN_BEGIN":
 		return TurnBeginSaveDetected{Path: path}
 	case "GAME_BEGIN":
-		return GameBeginSaveDetected{Path: path}
+		return GameBeginSaveDetected{Path: path, Backfill: backfill}
 	case "TURN_END":
-		return TurnEndSaveDetected{Path: path, Turn: turnNumber(path)}
+		return TurnEndSaveDetected{Path: path, Turn: turnNumber(path), Backfill: backfill}
 	}
 	return nil
 }
@@ -239,7 +240,7 @@ func (w *Watcher) readLoop(fsn *fsnotify.Watcher, dir, gamesDir, absGames, absPa
 						dmu.Lock()
 						delete(debounce, absEvent)
 						dmu.Unlock()
-						w.bus.Publish(saveDetectedEvent(p.path, p.fileType))
+						w.bus.Publish(saveDetectedEvent(p.path, p.fileType, false))
 					})
 					debounce[absEvent] = p
 				}
@@ -269,7 +270,7 @@ func (w *Watcher) readLoop(fsn *fsnotify.Watcher, dir, gamesDir, absGames, absPa
 							dmu.Lock()
 							delete(debounce, absEvent)
 							dmu.Unlock()
-							w.bus.Publish(saveDetectedEvent(p.path, p.fileType))
+							w.bus.Publish(saveDetectedEvent(p.path, p.fileType, false))
 						})
 						debounce[absEvent] = p
 					}

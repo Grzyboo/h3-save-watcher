@@ -67,43 +67,43 @@ func (t *uploadTracker) wait(timeout time.Duration) bool {
 // work runs on spawned goroutines so the event loop stays responsive and
 // uploads stay concurrent.
 func registerUploadHandlers(bus *Bus, s *State, uploads *uploadTracker) {
-	detect := func(path, fileType string) {
-		bus.Publish(UploadStarted{Path: path})
+	detect := func(path, fileType string, backfill bool) {
+		bus.Publish(UploadStarted{Path: path, Backfill: backfill})
 
 		data, err := os.ReadFile(path)
 		if err != nil {
-			bus.Publish(UploadFailed{Path: path, Kind: UploadErrRead, Err: err})
+			bus.Publish(UploadFailed{Path: path, Kind: UploadErrRead, Err: err, Backfill: backfill})
 			return
 		}
 
 		hash := fmt.Sprintf("%x", sha256.Sum256(data))
 		if s.lastUploadedHash[fileType] == hash {
 			log.Printf("skipping duplicate upload: %s (%s), hash %s already uploaded", filepath.Base(path), fileType, hash)
-			bus.Publish(UploadSkippedDuplicate{Path: path})
+			bus.Publish(UploadSkippedDuplicate{Path: path, Backfill: backfill})
 			return
 		}
 		s.lastUploadedHash[fileType] = hash
 		info := s.gameInfo
 		instanceID := s.instanceID
 
-		go func() {
+		go func(backfill bool) {
 			outcome := uploadSaveFile(path, data, info, instanceID)
 			switch outcome.result {
 			case uploadOK:
-				bus.Publish(UploadSucceeded{Path: path})
+				bus.Publish(UploadSucceeded{Path: path, Backfill: backfill})
 			case uploadAlreadyExists:
-				bus.Publish(UploadAlreadyOnServer{Path: path})
+				bus.Publish(UploadAlreadyOnServer{Path: path, Backfill: backfill})
 			default:
-				bus.Publish(UploadFailed{Path: path, Kind: outcome.kind, Err: outcome.err})
+				bus.Publish(UploadFailed{Path: path, Kind: outcome.kind, Err: outcome.err, Backfill: backfill})
 			}
-		}()
+		}(backfill)
 	}
 
-	Subscribe(bus, func(e BattleSaveDetected) { detect(e.Path, "BATTLE") })
-	Subscribe(bus, func(e BattleNonContinuableSaveDetected) { detect(e.Path, "BATTLE_NC") })
-	Subscribe(bus, func(e TurnBeginSaveDetected) { detect(e.Path, "TURN_BEGIN") })
-	Subscribe(bus, func(e GameBeginSaveDetected) { detect(e.Path, "GAME_BEGIN") })
-	Subscribe(bus, func(e TurnEndSaveDetected) { detect(e.Path, "TURN_END") })
+	Subscribe(bus, func(e BattleSaveDetected) { detect(e.Path, "BATTLE", false) })
+	Subscribe(bus, func(e BattleNonContinuableSaveDetected) { detect(e.Path, "BATTLE_NC", false) })
+	Subscribe(bus, func(e TurnBeginSaveDetected) { detect(e.Path, "TURN_BEGIN", false) })
+	Subscribe(bus, func(e GameBeginSaveDetected) { detect(e.Path, "GAME_BEGIN", e.Backfill) })
+	Subscribe(bus, func(e TurnEndSaveDetected) { detect(e.Path, "TURN_END", e.Backfill) })
 
 	// inFlight tracks started uploads by path (bus goroutine only) so that an
 	// UploadFailed without a matching UploadStarted, such as a folder scan

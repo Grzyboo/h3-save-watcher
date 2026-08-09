@@ -5,11 +5,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
-	cacheFile      = "h3savewatcher_cache.json"
-	maxSentFolders = 20
+	cacheFile                  = "h3savewatcher_cache.json"
+	maxSentFolders             = 20
+	legacyInitialRunInfoPrefix = "Initial run, didn't send files: "
 )
 
 // SentFoldersCache persists the list of game folders and the files that have
@@ -23,7 +25,7 @@ type SentFoldersCache struct {
 type SentFolder struct {
 	Path  string   `json:"path"`
 	Files []string `json:"files"`
-	Info  string   `json:"info,omitempty"`
+	Info  string   `json:"info,omitempty"` // legacy initial-run migration marker
 }
 
 // legacyCachePath returns the old cache path directly in the user's config
@@ -57,7 +59,42 @@ func loadSentFoldersCache() SentFoldersCache {
 		log.Printf("failed to parse sent folders cache: %v", err)
 		return SentFoldersCache{}
 	}
+	if cache.migrateLegacyInitialRun() {
+		if err := cache.save(); err != nil {
+			log.Printf("failed to save migrated sent folders cache: %v", err)
+		}
+	}
 	return cache
+}
+
+// migrateLegacyInitialRun removes files that an older version marked as sent
+// without uploading during its first run. Successful uploads recorded after
+// that scan remain cached.
+func (c *SentFoldersCache) migrateLegacyInitialRun() bool {
+	changed := false
+	for i := range c.Folders {
+		info := c.Folders[i].Info
+		if !strings.HasPrefix(info, legacyInitialRunInfoPrefix) {
+			continue
+		}
+
+		initialFiles := strings.Split(strings.TrimPrefix(info, legacyInitialRunInfoPrefix), ", ")
+		initialSet := make(map[string]struct{}, len(initialFiles))
+		for _, filename := range initialFiles {
+			initialSet[filename] = struct{}{}
+		}
+
+		kept := c.Folders[i].Files[:0]
+		for _, filename := range c.Folders[i].Files {
+			if _, wasSkipped := initialSet[filename]; !wasSkipped {
+				kept = append(kept, filename)
+			}
+		}
+		c.Folders[i].Files = kept
+		c.Folders[i].Info = ""
+		changed = true
+	}
+	return changed
 }
 
 // save writes the cache to disk atomically (temp file + rename).
@@ -135,14 +172,4 @@ func (c *SentFoldersCache) hasFile(path, filename string) bool {
 		return false
 	}
 	return false
-}
-
-// setInfo stores a free-form debug marker on the given folder.
-func (c *SentFoldersCache) setInfo(path, info string) {
-	for i, f := range c.Folders {
-		if f.Path == path {
-			c.Folders[i].Info = info
-			return
-		}
-	}
 }

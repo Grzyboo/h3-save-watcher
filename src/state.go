@@ -12,15 +12,17 @@ import (
 // which is also read from Fyne's thread (log list rendering) via T, so it is
 // guarded by its own small mutex.
 type State struct {
-	watchDir          string
-	gameInfo          GameInfo
-	watchedGameFolder string
-	gamesDirWatched   bool
-	isInitialRun      bool
-	firstRun          bool
-	lastUploadedHash  map[string]string // keyed by fileType
-	sentFoldersCache  SentFoldersCache
-	instanceID        string
+	watchDir                      string
+	gameInfo                      GameInfo
+	watchedGameFolder             string
+	gamesDirWatched               bool
+	passwordsLoadAttempted        bool
+	backfillAllowedForNextResolve bool
+	backfillPendingFolder         string
+	initialGameResolved           bool
+	lastUploadedHash              map[string]string // keyed by fileType
+	sentFoldersCache              SentFoldersCache
+	instanceID                    string
 
 	langMu sync.RWMutex
 	lang   Lang
@@ -49,13 +51,24 @@ func (s *State) setLang(lang Lang) {
 	s.langMu.Unlock()
 }
 
+// Lang returns the current language.
+func (s *State) Lang() Lang {
+	s.langMu.RLock()
+	defer s.langMu.RUnlock()
+	return s.lang
+}
+
 // uiRefs holds the widget pointers needed by UI-touching handlers. They are
 // assigned once during UI construction (buildUI); any widget access from a
 // handler is wrapped in fyne.Do.
 type uiRefs struct {
 	window        fyne.Window
+	mainContent   fyne.CanvasObject
 	dirLabel      *widget.Label
 	selectedLabel *widget.Label
-	browseBtn     *widget.Button
-	startupBtn    *widget.Button
+
+	// Settings panel refs; settingsDirLabel is rebuilt on each open.
+	settingsDirLabel *widget.Label
+	startupCheck     *widget.Check
+	showingSettings  bool
 }

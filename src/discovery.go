@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
@@ -13,6 +14,9 @@ func looksLikeH3(name string) bool {
 	has3 := strings.Contains(low, "3") || strings.Contains(low, "iii")
 
 	if strings.Contains(low, "hota") {
+		return true
+	}
+	if strings.Contains(low, "heros") {
 		return true
 	}
 	if strings.Contains(low, "heroes of might and magic") && has3 {
@@ -72,6 +76,10 @@ func platformSearchRoots() []searchRoot {
 			drive := string(letter) + `:\`
 			if _, err := os.Stat(drive); err == nil {
 				roots = append(roots, searchRoot{path: drive, recursive: false})
+				gogGames := filepath.Join(drive, "GOG Games")
+				if info, err := os.Stat(gogGames); err == nil && info.IsDir() {
+					roots = append(roots, searchRoot{path: gogGames, recursive: false})
+				}
 			}
 		}
 		return roots
@@ -95,9 +103,10 @@ func platformSearchRoots() []searchRoot {
 	}
 }
 
-// findInstallation searches all platform locations, collects every valid H3
-// root, and returns the one whose HotA signature files are newest.
-func findInstallation() string {
+// findAllInstallations searches all platform locations and returns every
+// valid H3 root, sorted by HotA signature file modification time (newest
+// first).
+func findAllInstallations() []string {
 	var all []string
 	for _, sr := range platformSearchRoots() {
 		if sr.recursive {
@@ -106,18 +115,10 @@ func findInstallation() string {
 			all = append(all, collectShallow(sr.path)...)
 		}
 	}
-	if len(all) == 0 {
-		return ""
-	}
-	best := all[0]
-	bestTime := hotaFilesModTime(best)
-	for _, candidate := range all[1:] {
-		if t := hotaFilesModTime(candidate); t.After(bestTime) {
-			best = candidate
-			bestTime = t
-		}
-	}
-	return best
+	sort.SliceStable(all, func(i, j int) bool {
+		return hotaFilesModTime(all[i]).After(hotaFilesModTime(all[j]))
+	})
+	return all
 }
 
 func collectShallow(dir string) []string {

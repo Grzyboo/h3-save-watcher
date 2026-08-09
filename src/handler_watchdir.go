@@ -16,17 +16,17 @@ func registerWatchDirHandlers(bus *Bus, s *State, ui *uiRefs, watcher *Watcher) 
 			return
 		}
 
-		fyne.Do(func() { ui.dirLabel.SetText(root) })
+		fyne.Do(func() {
+			ui.dirLabel.SetText(root)
+			if ui.settingsDirLabel != nil {
+				ui.settingsDirLabel.SetText(root)
+			}
+		})
 		cfg := loadConfig()
 		cfg.WatchDir = root
 		saveConfig(cfg)
 		watcher.Start(root)
 		bus.Publish(WatchDirChanged{Dir: root})
-
-		if s.firstRun && !isStartupEnabled() {
-			s.firstRun = false
-			bus.Publish(StartupToggleRequested{})
-		}
 	})
 	Subscribe(bus, func(e WatchDirInvalid) {
 		fyne.Do(func() { dialog.ShowError(e.Err, ui.window) })
