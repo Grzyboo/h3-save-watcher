@@ -108,7 +108,8 @@ func (l *logStore) startPruner() {
 }
 
 func buildLogList(store *logStore, translate func(TranslationKey) string) *widget.List {
-	list := widget.NewList(
+	var list *widget.List
+	list = widget.NewList(
 		func() int {
 			store.mu.Lock()
 			defer store.mu.Unlock()
@@ -128,6 +129,7 @@ func buildLogList(store *logStore, translate func(TranslationKey) string) *widge
 			} else {
 				lbl.Importance = widget.DangerImportance
 			}
+			list.SetItemHeight(id, lbl.MinSize().Height)
 		},
 	)
 	list.OnSelected = func(id widget.ListItemID) {
