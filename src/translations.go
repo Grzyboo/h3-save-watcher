@@ -30,7 +30,10 @@ const (
 	KeyAutoDetected         TranslationKey = "auto_detected"
 	KeyManuallyAdded        TranslationKey = "manually_added"
 	KeyAddInstallation      TranslationKey = "add_installation"
-	KeyNoInstallationsFound TranslationKey = "no_installations_found"
+	KeyAutoDetectionNone    TranslationKey = "auto_detection_none"
+	KeyAutoDetectionOne     TranslationKey = "auto_detection_one"
+	KeyAutoDetectionMany    TranslationKey = "auto_detection_many"
+	KeyInstallationSelected TranslationKey = "installation_selected"
 	KeyInstallHintEmpty     TranslationKey = "installation_hint_empty"
 	KeyInstallHintOne       TranslationKey = "installation_hint_one"
 	KeyInstallHintMany      TranslationKey = "installation_hint_many"
@@ -88,7 +91,10 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyAutoDetected:         "[autodetected] ",
 		KeyManuallyAdded:        "[added manually] ",
 		KeyAddInstallation:      "Add HotA installation",
-		KeyNoInstallationsFound: "Could not automatically find HOMM3:HotA installed on the system - please add HotA folder.\nThe application will reject any non-hota folder.",
+		KeyAutoDetectionNone:    "Ajit did not find any HoMM3:HotA installation folders. The game is probably installed in a non-standard location.\nSelect an installation using the button below. The program will notify you if the selected folder is invalid.",
+		KeyAutoDetectionOne:     "Ajit found a HOMM3:HotA installation folder. Click the path below if it is correct.\nOtherwise, select a folder with HOMM3:HotA installed using the button below.",
+		KeyAutoDetectionMany:    "Ajit found multiple HotA installations!\nClick the correct path below, or add it using the button below if it is not listed.",
+		KeyInstallationSelected: "Everything is OK, you can continue",
 		KeyInstallHintEmpty:     "add a hota installation folder to continue",
 		KeyInstallHintOne:       "select the installation above the button or add another one",
 		KeyInstallHintMany:      "select one of the installations from the list above to continue",
@@ -140,7 +146,10 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyAutoDetected:         "[wykryto automatycznie] ",
 		KeyManuallyAdded:        "[dodano ręcznie] ",
 		KeyAddInstallation:      "Dodaj instalację HotA",
-		KeyNoInstallationsFound: "Nie udało się automatycznie znaleźć zainstalowanego HOMM3:HotA w systemie - dodaj folder HotA.\nAplikacja odrzuci każdy folder, który nie jest folderem HotA.",
+		KeyAutoDetectionNone:    "Ajit nie znalazł żadnych folderów z HoMM3:HotA. Prawdopodobnie gra zainstalowana jest w niestandardowym miejscu.\nWskaż instalację używając przycisku poniżej. Program poinformuje w przypadku wskazania nieprawidłowego folderu.",
+		KeyAutoDetectionOne:     "Ajit znalazł folder instalacji HOMM3:HotA. Kliknij w ścieżkę poniżej jeśli jest prawidłowa.\nW przeciwnym wypadku wskaż folder z zainstalowanym HOMM3:HotA za pomocą przycisku poniżej.",
+		KeyAutoDetectionMany:    "Ajit znalazł wiele instalacji HotA!\nKliknij w poprawną ścieżkę poniżej, a jeżeli takiej nie ma na liście to dodaj ją za pomocą przycisku poniżej.",
+		KeyInstallationSelected: "Wszystko ok, możesz przejść dalej",
 		KeyInstallHintEmpty:     "dodaj folder instalacji HotA, aby kontynuować",
 		KeyInstallHintOne:       "wybierz instalację powyżej przycisku lub dodaj kolejną",
 		KeyInstallHintMany:      "wybierz jedną z instalacji z listy powyżej, aby kontynuować",
@@ -192,7 +201,10 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyAutoDetected:         "[виявлено автоматично] ",
 		KeyManuallyAdded:        "[додано вручну] ",
 		KeyAddInstallation:      "Додати встановлення HotA",
-		KeyNoInstallationsFound: "Не вдалося автоматично знайти встановлену HOMM3:HotA у системі - додайте папку HotA.\nПрограма відхилить будь-яку папку, яка не є папкою HotA.",
+		KeyAutoDetectionNone:    "Ajit не знайшов жодної папки з HoMM3:HotA. Ймовірно, гру встановлено у нестандартному місці.\nВкажіть встановлення за допомогою кнопки нижче. Програма повідомить, якщо вибрано неправильну папку.",
+		KeyAutoDetectionOne:     "Ajit знайшов папку встановлення HOMM3:HotA. Натисніть на шлях нижче, якщо він правильний.\nЯкщо ні, вкажіть папку зі встановленим HOMM3:HotA за допомогою кнопки нижче.",
+		KeyAutoDetectionMany:    "Ajit знайшов кілька встановлень HotA!\nНатисніть правильний шлях нижче або додайте його за допомогою кнопки нижче, якщо його немає у списку.",
+		KeyInstallationSelected: "Все гаразд, можна продовжити",
 		KeyInstallHintEmpty:     "додайте папку встановлення HotA, щоб продовжити",
 		KeyInstallHintOne:       "виберіть встановлення над кнопкою або додайте ще одне",
 		KeyInstallHintMany:      "виберіть одне зі встановлень зі списку вище, щоб продовжити",
@@ -244,7 +256,10 @@ var translations = map[Lang]map[TranslationKey]string{
 		KeyAutoDetected:         "[обнаружено автоматически] ",
 		KeyManuallyAdded:        "[добавлено вручную] ",
 		KeyAddInstallation:      "Добавить установку HotA",
-		KeyNoInstallationsFound: "Не удалось автоматически найти установленную HOMM3:HotA в системе - добавьте папку HotA.\nПриложение отклонит любую папку, которая не является папкой HotA.",
+		KeyAutoDetectionNone:    "Ajit не нашел ни одной папки с HoMM3:HotA. Вероятно, игра установлена в нестандартном месте.\nУкажите установку с помощью кнопки ниже. Программа сообщит, если выбрана неправильная папка.",
+		KeyAutoDetectionOne:     "Ajit нашел папку установки HOMM3:HotA. Нажмите на путь ниже, если он правильный.\nВ противном случае укажите папку с установленной HOMM3:HotA с помощью кнопки ниже.",
+		KeyAutoDetectionMany:    "Ajit нашел несколько установок HotA!\nНажмите правильный путь ниже или добавьте его с помощью кнопки ниже, если его нет в списке.",
+		KeyInstallationSelected: "Все в порядке, можно продолжить",
 		KeyInstallHintEmpty:     "добавьте папку установки HotA, чтобы продолжить",
 		KeyInstallHintOne:       "выберите установку над кнопкой или добавьте еще одну",
 		KeyInstallHintMany:      "выберите одну из установок в списке выше, чтобы продолжить",

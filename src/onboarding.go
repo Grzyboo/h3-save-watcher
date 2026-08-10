@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
@@ -63,11 +64,11 @@ type onboarding struct {
 	autostart     bool
 
 	// Panel 2 widget refs — valid only while panel == 2.
-	installList    *widget.List
-	installSection *fyne.Container
-	infoLabel      *widget.Label
-	selectionHint  *widget.Label
-	nextButton     *widget.Button
+	installList       *widget.List
+	installSection    *fyne.Container
+	autodetectionInfo *widget.Label
+	selectionHint     *widget.Label
+	nextButton        *widget.Button
 }
 
 func newOnboarding(bus *Bus, s *State, w fyne.Window) *onboarding {
@@ -133,16 +134,13 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 	title.Alignment = fyne.TextAlignCenter
 	title.Importance = widget.HighImportance
 
-	o.infoLabel = widget.NewLabel("")
-	// Truncate instead of wrap: a wrapping label's MinSize height depends on
-	// its current width, which makes the window grow on every SetContent.
-	o.infoLabel.Truncation = fyne.TextTruncateEllipsis
-	o.infoLabel.Hide()
-
 	o.selectionHint = widget.NewLabel("")
 	o.selectionHint.Alignment = fyne.TextAlignCenter
 	o.selectionHint.Importance = widget.DangerImportance
 	o.selectionHint.Hide()
+	o.autodetectionInfo = widget.NewLabel("")
+	o.autodetectionInfo.Alignment = fyne.TextAlignCenter
+	o.autodetectionInfo.Wrapping = fyne.TextWrapWord
 
 	o.nextButton = widget.NewButton(o.s.T(KeyNext), func() { o.show(o.panel3()) })
 	o.nextButton.Importance = widget.HighImportance
@@ -160,7 +158,9 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 				if installation.manual {
 					prefix = o.s.T(KeyManuallyAdded)
 				}
-				obj.(*widget.Label).SetText(prefix + installation.path)
+				label := obj.(*widget.Label)
+				label.Alignment = fyne.TextAlignCenter
+				label.SetText(prefix + installation.path)
 			}
 		},
 	)
@@ -169,6 +169,7 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 			o.dir = o.installations[id].path
 			o.nextButton.Enable()
 			o.refreshSelectionHint()
+			o.refreshAutodetectionInfo()
 		}
 	}
 
@@ -186,9 +187,12 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		&installationListLayout{length: func() int { return len(o.installations) }},
 		o.installList,
 	)
+	settings := fyne.CurrentApp().Settings()
+	listBackground := canvas.NewRectangle(settings.Theme().Color(theme.ColorNameInputBackground, settings.ThemeVariant()))
+	listPanel := container.NewStack(listBackground, container.NewPadded(listContainer))
 	o.installSection = container.NewVBox(
-		listContainer,
-		container.NewCenter(addBtn),
+		container.NewPadded(listPanel),
+		container.NewPadded(container.NewCenter(addBtn)),
 		container.NewCenter(o.selectionHint),
 	)
 
@@ -198,7 +202,7 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		o.dir = ""
 		o.show(o.panel1())
 	})
-	heading := container.NewVBox(title, o.infoLabel)
+	heading := container.NewVBox(title, o.autodetectionInfo)
 	top := container.NewPadded(container.NewStack(heading, newPanelCounter("2/3")))
 	bottom := container.NewPadded(container.NewBorder(nil, nil, prev, o.nextButton))
 	content := container.NewBorder(top, bottom, nil, nil, container.NewPadded(o.installSection))
@@ -209,7 +213,6 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		go o.detect(o.scanID)
 	} else {
 		// Re-entering from panel 3 — restore the previous scan + selection.
-		o.refreshInfoLabel()
 		for i, installation := range o.installations {
 			if installation.path == o.dir {
 				o.installList.Select(i)
@@ -218,14 +221,16 @@ func (o *onboarding) panel2() fyne.CanvasObject {
 		}
 	}
 	o.refreshSelectionHint()
+	o.refreshAutodetectionInfo()
 
 	return appBackground(content)
 }
 
 func (o *onboarding) refreshInstallList() {
 	o.installList.Refresh()
-	o.installSection.Refresh()
 	o.refreshSelectionHint()
+	o.refreshAutodetectionInfo()
+	o.installSection.Refresh()
 }
 
 func (o *onboarding) refreshSelectionHint() {
@@ -233,7 +238,10 @@ func (o *onboarding) refreshSelectionHint() {
 		return
 	}
 	if !o.nextButton.Disabled() {
-		o.selectionHint.Hide()
+		o.selectionHint.SetText(o.s.T(KeyInstallationSelected))
+		o.selectionHint.Importance = widget.SuccessImportance
+		o.selectionHint.Refresh()
+		o.selectionHint.Show()
 		return
 	}
 
@@ -245,18 +253,31 @@ func (o *onboarding) refreshSelectionHint() {
 		key = KeyInstallHintOne
 	}
 	o.selectionHint.SetText(o.s.T(key))
+	o.selectionHint.Importance = widget.DangerImportance
+	o.selectionHint.Refresh()
 	o.selectionHint.Show()
 }
 
-// refreshInfoLabel shows the not-found message when the list is empty and
-// hides it once an installation is available.
-func (o *onboarding) refreshInfoLabel() {
-	if len(o.installations) == 0 {
-		o.infoLabel.SetText(o.s.T(KeyNoInstallationsFound))
-		o.infoLabel.Show()
+func (o *onboarding) refreshAutodetectionInfo() {
+	if o.autodetectionInfo == nil {
 		return
 	}
-	o.infoLabel.Hide()
+
+	autodetected := 0
+	for _, installation := range o.installations {
+		if !installation.manual {
+			autodetected++
+		}
+	}
+	key := KeyAutoDetectionNone
+	switch {
+	case autodetected == 1:
+		key = KeyAutoDetectionOne
+	case autodetected >= 2:
+		key = KeyAutoDetectionMany
+	}
+	o.autodetectionInfo.SetText(o.s.T(key))
+	o.autodetectionInfo.Refresh()
 }
 
 // detect scans the filesystem for H3 installations and merges the results
@@ -274,7 +295,6 @@ func (o *onboarding) detect(id int) {
 				o.installations = append(o.installations, installation{path: p})
 			}
 		}
-		o.refreshInfoLabel()
 		o.refreshInstallList()
 	})
 }
@@ -294,7 +314,6 @@ func (o *onboarding) addInstallation(path string) {
 		}
 	}
 	o.installations = append([]installation{{path: root, manual: true}}, o.installations...)
-	o.refreshInfoLabel()
 	o.refreshInstallList()
 	o.installList.Select(0)
 }
