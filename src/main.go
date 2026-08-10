@@ -59,6 +59,7 @@ func main() {
 	registerLanguageHandlers(bus, s, ui, logs)
 	registerStartupHandlers(bus, s, ui)
 	registerLogHandlers(bus, s, logs)
+	registerErrorHandlers(bus, s)
 	registerOnboardingHandlers(bus, s, ui, watcher)
 
 	up := &updater{bus: bus, watcher: watcher, sched: sched, uploads: uploads}

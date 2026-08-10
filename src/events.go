@@ -172,6 +172,17 @@ type UploadFailed struct {
 }
 
 // ---------------------------------------------------------------------------
+// Error reporting
+// ---------------------------------------------------------------------------
+
+// ClientErrorLogged is emitted whenever a red (failure) entry is added to the
+// activity log; the error-reporting handler forwards it to the server.
+type ClientErrorLogged struct {
+	Key  TranslationKey
+	Args []any
+}
+
+// ---------------------------------------------------------------------------
 // UI intents / facts
 // ---------------------------------------------------------------------------
 

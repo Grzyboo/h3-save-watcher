@@ -7,6 +7,9 @@ import "path/filepath"
 func registerLogHandlers(bus *Bus, s *State, logs *logStore) {
 	logf := func(success bool, key TranslationKey, args ...any) {
 		logs.add(success, key, args...)
+		if !success {
+			bus.Publish(ClientErrorLogged{Key: key, Args: args})
+		}
 	}
 
 	// WatchStarted is published right after PasswordsCreated, so by the time
