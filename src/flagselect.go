@@ -20,13 +20,14 @@ const (
 // flagOrder is the display order of language flags in the onboarding wizard
 // and the settings panel.
 var flagOrder = []struct {
+	name string
 	img  []byte
 	lang Lang
 }{
-	{flagPL, LangPL},
-	{flagEN, LangEN},
-	{flagUA, LangUA},
-	{flagRU, LangRU},
+	{"pl.svg", flagPL, LangPL},
+	{"gb.svg", flagEN, LangEN},
+	{"ua.svg", flagUA, LangUA},
+	{"ru.svg", flagRU, LangRU},
 }
 
 // flagSelector is a row of flag images where at most one flag is selected;
@@ -61,7 +62,7 @@ func newFlagSelectorSized(onSelect func(Lang), flagWidth float32) *flagSelector 
 			h = h * flagWidth / w
 			w = flagWidth
 		}
-		img := canvas.NewImageFromResource(fyne.NewStaticResource("flag", fl.img))
+		img := canvas.NewImageFromResource(fyne.NewStaticResource(fl.name, fl.img))
 		img.FillMode = canvas.ImageFillContain
 		img.ScaleMode = canvas.ImageScaleSmooth
 		img.SetMinSize(fyne.NewSize(w, h))
@@ -113,10 +114,14 @@ func accentColor() color.Color {
 
 func flagDimensions(data []byte) (float32, float32) {
 	cfg, err := png.DecodeConfig(bytes.NewReader(data))
-	if err != nil {
-		return 40, 25
+	if err == nil {
+		return float32(cfg.Width), float32(cfg.Height)
 	}
-	return float32(cfg.Width), float32(cfg.Height)
+	// The bundled SVG flags all use a 640x480 viewBox.
+	if bytes.Contains(data, []byte("<svg")) {
+		return 640, 480
+	}
+	return 40, 25
 }
 
 // tappableImage is a canvas image that reports taps; buttons cannot be used

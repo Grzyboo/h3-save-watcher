@@ -2,16 +2,16 @@ package main
 
 import _ "embed"
 
-//go:embed assets/flag_en.png
+//go:embed assets/gb.svg
 var flagEN []byte
 
-//go:embed assets/flag_pl.png
+//go:embed assets/pl.svg
 var flagPL []byte
 
-//go:embed assets/flag_ua.png
+//go:embed assets/ua.svg
 var flagUA []byte
 
-//go:embed assets/flag_ru.png
+//go:embed assets/ru.svg
 var flagRU []byte
 
 //go:embed Icon.png

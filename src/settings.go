@@ -32,7 +32,7 @@ func buildSettingsView(bus *Bus, s *State, ui *uiRefs, w fyne.Window) fyne.Canva
 
 	langLabel := widget.NewLabel(s.T(KeyLanguage))
 	langLabel.Importance = widget.HighImportance
-	flags := newFlagSelector(func(lang Lang) { bus.Publish(LanguageChanged{Lang: lang}) })
+	flags := newFlagSelectorSized(func(lang Lang) { bus.Publish(LanguageChanged{Lang: lang}) }, 40)
 	flags.Select(s.Lang())
 
 	folderLabel := widget.NewLabel(s.T(KeyHotAFolder))
